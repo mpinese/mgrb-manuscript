@@ -1,0 +1,202 @@
+---
+title: Polygenic score comparisons
+output: html_document
+---
+
+# Data loading and processing
+```{r}
+library(ggplot2)
+library(plyr)
+library(knitr)
+
+metadata = read.csv("data/MGRB_paper_sample_metadata_20180713.csv", stringsAsFactors = FALSE)
+
+metadata.45andup = metadata[metadata$cohort == "45andUp",c(
+    "sampleID", "cohort", "isFemale", "inMGRBphase2", grep("^Cancer\\.", colnames(metadata), value = TRUE), 
+    "successfullySequenced", "Phase2.SampleQCTier", "Phase2.RelatednessDropped", 
+    grep("^PC[12345]$", colnames(metadata), value = TRUE),
+    "predictedSuperPop", "predictedEurPop.probabilityNFE",
+    grep("^PolygenicScore\\.", colnames(metadata), value = TRUE))]
+metadata.45andup = metadata.45andup[!apply(is.na(metadata.45andup[,colnames(metadata.45andup) != "Cancer.AgeWithoutCancerYears"]), 1, any),]
+
+nfe.45andup = metadata.45andup[
+    metadata.45andup$predictedSuperPop == "EUR" & 
+    metadata.45andup$predictedEurPop.probabilityNFE > 0.99 &
+    metadata.45andup$cohort == "45andUp",]
+
+nfe.45andup.mgrb = nfe.45andup[nfe.45andup$inMGRBphase2 == 1,]
+nfe.45andup.cancer = nfe.45andup[nfe.45andup$Cancer.AnyCancer == 1,]
+
+rm(metadata, metadata.45andup, nfe.45andup)
+```
+Samples:
+
+* 45 and Up cancer free: `r nrow(nfe.45andup.mgrb)`
+* 45 and Up cancer: `r nrow(nfe.45andup.cancer)`
+
+
+# PCA comparisons
+Verify that 45 and Up MGRB and cancer cases have similar PC structure.
+```{r}
+temp = rbind(nfe.45andup.mgrb, nfe.45andup.cancer)
+ggplot(temp, aes(x = PC1, y = PC2, col = factor(Cancer.AnyCancer))) + geom_point()
+ggplot(temp, aes(x = PC1, y = PC3, col = factor(Cancer.AnyCancer))) + geom_point()
+ggplot(temp, aes(x = PC1, y = PC4, col = factor(Cancer.AnyCancer))) + geom_point()
+ggplot(temp, aes(x = PC2, y = PC3, col = factor(Cancer.AnyCancer))) + geom_point()
+ggplot(temp, aes(x = PC2, y = PC4, col = factor(Cancer.AnyCancer))) + geom_point()
+ggplot(temp, aes(x = PC3, y = PC4, col = factor(Cancer.AnyCancer))) + geom_point()
+```
+
+PC structure seems the same.  There is a single outlier with PC1 < -0.05, PC2 < -0.05.
+
+# PRS distribution comparisons
+Compare PRS of 45 and Up MGRB and cancer cases.
+
+## Setup
+
+Define the cancer PRSes and others (as negative controls).
+```{r}
+prs_cancer = data.frame(
+    prs_colname =    c("PolygenicScore.BasalCellCarcinoma", "PolygenicScore.BreastCancer", "PolygenicScore.ColorectalCancer", "PolygenicScore.Melanoma", "PolygenicScore.ProstateCancer", "PolygenicScore.SquamousCellCarcinoma"),
+    cancer_colname = c("Cancer.NonMelanomaSkin",            "Cancer.Breast",               "Cancer.Colorectal",               "Cancer.Melanoma",         "Cancer.Prostate",               "Cancer.NonMelanomaSkin"),
+    sex =            c("MF",                                "F",                           "MF",                              "MF",                      "M",                             "MF"),
+    stringsAsFactors = FALSE)
+
+prs_other = data.frame(prs_colname = c(
+        "PolygenicScore.AlzheimersDisease",
+        "PolygenicScore.DiastolicBP",
+        "PolygenicScore.EOCAD",
+        "PolygenicScore.Height",
+        "PolygenicScore.Longevity",
+        "PolygenicScore.PulsePressure",
+        "PolygenicScore.SystolicBP"), stringsAsFactors = FALSE)
+```
+
+## Power checking
+Establish which PRSes are reasonably powered.  Require at least 40 cases to justify a test.
+```{r}
+prs_cancer = ddply(prs_cancer, .(prs_colname, cancer_colname, sex), function(d) {
+    cases = 0
+    if (grepl("M", d$sex))
+        cases = cases + sum(nfe.45andup.cancer[,d$cancer_colname] & nfe.45andup.cancer$isFemale == 0)
+    if (grepl("F", d$sex))
+        cases = cases + sum(nfe.45andup.cancer[,d$cancer_colname] & nfe.45andup.cancer$isFemale == 1)
+    d$cases = cases
+    d
+})
+kable(prs_cancer)
+```
+
+We have sufficient cases to test the following:
+
+```{r}
+kable(prs_cancer[prs_cancer$cases >= 40,])
+```
+
+## Testing: cancers
+Test for differences in PRS distribution between cancer cases and controls for the powered cancers.
+```{r}
+prs_cancer = ddply(prs_cancer, .(prs_colname, cancer_colname, sex), function(d) {
+    if (d$cases < 40)
+    {
+        d$pval = NA
+        return(d)
+    }
+
+    cancers = nfe.45andup.cancer[nfe.45andup.cancer[,d$cancer_colname] == 1,]
+    controls = rbind(nfe.45andup.mgrb, nfe.45andup.cancer[nfe.45andup.cancer[,d$cancer_colname] == 0,])
+
+    if (d$sex == "M")
+    {
+        cancers = cancers[cancers$isFemale == 0,]
+        controls = controls[controls$isFemale == 0,]
+    }
+    else if (d$sex == "F")
+    {
+        cancers = cancers[cancers$isFemale == 1,]
+        controls = controls[controls$isFemale == 1,]
+    }
+
+    scores_cancer = cancers[,d$prs_colname]
+    scores_controls = controls[,d$prs_colname]
+    temp = data.frame(score = c(scores_cancer, scores_controls), cancer = rep(c(1, 0), c(nrow(cancers), nrow(controls))))
+    fit = glm(cancer ~ score, data = temp, family = binomial)
+    d$pval = coef(summary(fit))[2,4]
+    d
+})
+
+prs_cancer$pval_holm = p.adjust(prs_cancer$pval, "holm")
+
+kable(prs_cancer)
+```
+
+## Testing: non-cancer PRS
+We expect no difference between cancer cases and MGRB controls for any of these PRSes.  Verify that this is the case.
+```{r}
+kable(ddply(prs_other, .(prs_colname), function(d) {
+    scores_cancer = nfe.45andup.cancer[,d$prs_colname]
+    scores_controls = nfe.45andup.mgrb[,d$prs_colname]
+    temp = data.frame(score = c(scores_cancer, scores_controls), cancer = rep(c(1, 0), c(length(scores_cancer), length(scores_controls))))
+    fit = glm(cancer ~ score, data = temp, family = binomial)
+    d$pval = coef(summary(fit))[2,4]
+    d
+}))
+```
+
+All good.
+
+
+# Plots
+
+Generate plots for the two significant associations identified: CRC in males and females, and PCa in males only.
+
+```{r}
+plotdata.crc = rbind(nfe.45andup.mgrb, nfe.45andup.cancer)
+plotdata.pca = rbind(nfe.45andup.mgrb[nfe.45andup.mgrb$isFemale == 0,], nfe.45andup.cancer[nfe.45andup.cancer$isFemale == 0,])
+```
+
+## Distributions
+```{r}
+ggplot(plotdata.crc, aes(x = PolygenicScore.ColorectalCancer, col = Cancer.Colorectal == 1)) + stat_ecdf()
+ggplot(plotdata.pca, aes(x = PolygenicScore.ProstateCancer, col = Cancer.Prostate == 1)) + stat_ecdf()
+```
+
+## Logistic regression
+```{r}
+library(mgcv)
+ggplot(plotdata.crc, aes(x = PolygenicScore.ColorectalCancer, y = Cancer.Colorectal)) + 
+    geom_smooth(method = glm, method.args = list(family = "binomial"))
+ggplot(plotdata.pca, aes(x = PolygenicScore.ProstateCancer, y = Cancer.Prostate)) + 
+    geom_smooth(method = glm, method.args = list(family = "binomial"))
+ggplot(plotdata.crc, aes(x = PolygenicScore.ColorectalCancer, y = Cancer.Colorectal)) + 
+    geom_smooth(method = gam, formula = y ~ s(x), method.args = list(family = "binomial"))
+ggplot(plotdata.pca, aes(x = PolygenicScore.ProstateCancer, y = Cancer.Prostate)) + 
+    geom_smooth(method = gam, formula = y ~ s(x), method.args = list(family = "binomial"))
+```
+
+The above is sensitive to incidence in the data not reflecting incidence in the population.  ROC curves circumvent this issue, but are not as easily interpreted.  How well does the incidence in the data reflect that in the population?
+
+* Data incidence: `r mean(plotdata.pca$Cancer.Prostate)*100`%
+* Population incidence: 11-16%, mean 13.94% (ACIM Prostate Cancer book, risks of diagnosis by age 75 from 2004-2014)
+
+Test for difference: 
+```{r}
+binom.test(sum(plotdata.pca$Cancer.Prostate), nrow(plotdata.pca), 0.1394)
+```
+
+So although the data have a higher PCa incidence than the population, it's not exceptionally different.
+
+
+## ROC curves
+Construct ROC curves for cancer incidence prediction based on the significantly different distributions found above.
+```{r}
+library(plotROC)
+ggplot(plotdata.crc, aes(d = Cancer.Colorectal, m = PolygenicScore.ColorectalCancer)) + geom_roc() + geom_abline(intercept = 0, slope = 1)
+ggplot(plotdata.pca, aes(d = Cancer.Prostate, m = PolygenicScore.ProstateCancer)) + geom_roc() + geom_abline(intercept = 0, slope = 1)
+```
+
+```{r}
+library(pROC)
+auc(roc(plotdata.crc$Cancer.Colorectal, plotdata.crc$PolygenicScore.ColorectalCancer))
+auc(roc(plotdata.pca$Cancer.Prostate, plotdata.pca$PolygenicScore.ProstateCancer))
+```

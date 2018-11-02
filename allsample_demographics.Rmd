@@ -1,0 +1,136 @@
+---
+title: Full cohort demographics
+output: html_document
+---
+
+# Data loading and processing
+```{r}
+phase2 = read.csv("data/MGRB_paper_sample_metadata_20181022.csv", stringsAsFactors = FALSE)
+phase3 = read.csv("data/MGRB_additional_ASPREE_20180716.csv", stringsAsFactors = FALSE)
+
+phase2 = phase2[phase2$cohort %in% c("ASPREE", "45andUp") & !is.na(phase2$Cancer.AnyCancer) & phase2$Cancer.AnyCancer == 0 & phase2$Cancer.AgeWithoutCancerYears >= 70, 
+    c("sampleID", "externalID", "YearOfBirth", "HtMtrs", "WtKgs", "AbdoCircCms", "isFemale", "inMGRBphase2")]
+
+phase3$isFemale = phase3$Gender_1male - 1
+phase3 = phase3[,
+    c("MGRB.Phase3", "ID", "YOB", "Ht_mtrs", "Wt_kgs", "AbdoCirc_cms", "isFemale")]
+
+colnames(phase3) = c("sampleID", "externalID", "YearOfBirth", "HtMtrs", "WtKgs", "AbdoCircCms", "isFemale")
+phase3$inMGRBphase2 = FALSE
+
+phase2$Phase = 2
+phase3$Phase = 3
+phase2$Cohort = c("A" = "ASPREE", "B" = "45andUp")[substr(phase2$sampleID, 1, 1)]
+phase3$Cohort = "ASPREE"
+
+metadata = rbind(phase2, phase3)
+metadata$HalfDecadeOfBirth = cut(metadata$YearOfBirth, breaks = seq(1910, 1950, 5), dig.lab = 4, right = FALSE)
+metadata$AgeAt2016 = cut(2016 - metadata$YearOfBirth, breaks = seq(70, 100, 5), dig.lab = 3, right = FALSE)
+metadata$Sex = c("male", "female")[metadata$isFemale + 1]
+rm(phase2, phase3)
+```
+
+# Demographic tables
+```{r}
+table(metadata$HalfDecadeOfBirth, metadata$Cohort, useNA = "ifany")
+table(metadata$Sex, metadata$Cohort, useNA = "ifany")
+plot(table(metadata$Sex, metadata$Cohort, useNA = "ifany"))
+table(metadata$AgeAt2016, metadata$Cohort, useNA = "ifany")
+
+table(metadata$HalfDecadeOfBirth[metadata$inMGRBphase2==1], metadata$Cohort[metadata$inMGRBphase2==1], useNA = "ifany")
+table(metadata$Sex[metadata$inMGRBphase2==1], metadata$Cohort[metadata$inMGRBphase2==1], useNA = "ifany")
+plot(table(metadata$Sex[metadata$inMGRBphase2==1], metadata$Cohort[metadata$inMGRBphase2==1], useNA = "ifany"))
+table(metadata$AgeAt2016[metadata$inMGRBphase2==1], metadata$Cohort[metadata$inMGRBphase2==1], useNA = "ifany")
+```
+
+# Demographic plots
+```{r}
+library(ggplot2)
+
+ggplot(metadata, aes(x = YearOfBirth, col = Cohort, lty = Sex)) + geom_freqpoly(binwidth = 2, lwd = 1) + ggtitle("Year of Birth") + theme_bw()
+ggplot(metadata[metadata$inMGRBphase2==1,], aes(x = YearOfBirth, col = Cohort, lty = Sex)) + geom_freqpoly(binwidth = 2, lwd = 1) + ggtitle("Year of Birth") + theme_bw()
+```
+
+# Age distribution plots with gnomAD, ASRB, UKBB
+
+Note upper limit set artificially to 100 years.
+
+```{r, dev='svg'}
+temp.asrb = read.csv("data/MGRB_paper_sample_metadata_20181022.csv", stringsAsFactors = FALSE)
+temp.asrb = temp.asrb[temp.asrb$cohort == "Cairns" & temp.asrb$successfullySequenced,]
+temp.asrb$AgeAtCollectionYearsBinned = cut(temp.asrb$AgeAtCollectionYears, breaks = seq(15, 70, 5), dig.lab = 3, right = FALSE)
+
+agebins.gnomad = c("[0,30)",                                  "[30,35)", "[35,40)", "[40,45)", "[45,50)", "[50,55)", "[55,60)", "[60,65)", "[65,70)", "[70,75)", "[75,80)", "[80,100)")
+counts.gnomad =  c(    2666,                                        655,       721,       970,      1445,      1774,      1440,      1113,       669,       377,       166,        73 )
+agebins.ukbb =   c(                                                                                        "[0,55)", "[55,60)", "[60,65)", "[65,70)", "[70,75)", "[75,100)"           )
+counts.ukbb =    c(                                                                                           38752,     50598,     60776,     75293,    104051,     79455            )
+agebins.asrb =   c("[0,15)", "[15,20)", "[20,25)", "[25,30)", "[30,35)", "[35,40)", "[40,45)", "[45,50)", "[50,55)", "[55,60)", "[60,65)", "[65,70)"                                  )
+counts.asrb =    sapply(agebins.asrb, function(bin) sum(temp.asrb$AgeAtCollectionYearsBinned == bin))
+agebins.mgrb =   c("[0,70)",                                                                                                                          "[70,75)", "[75,80)", "[80,85)", "[85,90)", "[90,95)", "[95,100)")
+counts.mgrb =    sapply(agebins.mgrb, function(bin) sum(metadata$inMGRBphase2 & metadata$AgeAt2016 == bin))
+counts = data.frame(
+    interval = c(agebins.gnomad, agebins.ukbb, agebins.asrb, agebins.mgrb),
+    cohort = rep(c("gnomAD", "UKBB", "ASRB", "MGRB"), c(length(agebins.gnomad), length(agebins.ukbb), length(agebins.asrb), length(agebins.mgrb))),
+    count = c(counts.gnomad, counts.ukbb, counts.asrb, counts.mgrb))
+temp = strsplit(gsub("^\\[([0-9]+,[0-9]+)\\)$", "\\1", counts$interval), ",")
+counts$lower = as.integer(sapply(temp, function(x) x[1]))
+counts$upper = as.integer(sapply(temp, function(x) x[2]))
+library(plyr)
+counts$fraction = counts$count / daply(counts, .(cohort), function(d) sum(d$count))[counts$cohort]
+counts$density = counts$fraction / (counts$upper - counts$lower)
+ggplot(counts, aes(xmin = lower, xmax = upper, ymin = 0, ymax = density, fill = cohort)) + geom_rect(col = "black") + theme_bw() + facet_wrap(~ cohort) + ggtitle("Cohort participant age distribution") + ylab("Density") + xlab("Age (years)")
+
+```
+
+# TelSeq vs qPCR
+```{r, dev='svg'}
+phase2 = read.csv("data/MGRB_paper_sample_metadata_20181022.csv", stringsAsFactors = FALSE)
+teldata = phase2[phase2$successfullySequenced == 1,c("TelSeqFinalRecalibrated", "telomere_qPCR_TSratio")]
+teldata = teldata[!apply(is.na(teldata), 1, any),]
+
+# Standardise by robust measures to enable Deming-type regression
+teldata$TelSeqFinalRecalibrated.stand = (teldata$TelSeqFinalRecalibrated - median(teldata$TelSeqFinalRecalibrated)) / mad(teldata$TelSeqFinalRecalibrated)
+teldata$telomere_qPCR_TSratio.stand = (teldata$telomere_qPCR_TSratio - median(teldata$telomere_qPCR_TSratio)) / mad(teldata$telomere_qPCR_TSratio)
+
+deming = function(x, y)
+{
+    cx = median(x)
+    cy = median(y)
+    sx = mad(x)
+    sy = mad(y)
+
+    xt = (x-cx)/sx
+    yt = (y-cy)/sy
+
+    df = data.frame(xt = xt, yt = yt)
+    pca = prcomp(~ xt + yt, df)
+    a1t = pca$rotation[2,1] / pca$rotation[1,1]
+    a0t = pca$center[[2]] - a1t*pca$center[[1]]
+
+    a1 = a1t*sy/sx
+    a0 = a0t*sy - a1t*cx*sy/sx + cy
+
+    list(slope = a1, intercept = a0)
+}
+
+temp = deming(teldata$telomere_qPCR_TSratio, teldata$TelSeqFinalRecalibrated)
+ggplot(teldata, aes(y = TelSeqFinalRecalibrated, x = telomere_qPCR_TSratio)) + geom_point() + geom_abline(slope = temp$slope, intercept = temp$intercept) + theme_bw()
+
+# One conspicuous outlier; remove and repeat
+
+teldata2 = teldata[teldata$TelSeqFinalRecalibrated < 5,]
+temp = deming(teldata$telomere_qPCR_TSratio, teldata$TelSeqFinalRecalibrated)
+ggplot(teldata2, aes(y = TelSeqFinalRecalibrated, x = telomere_qPCR_TSratio)) + geom_point() + geom_abline(slope = temp$slope, intercept = temp$intercept) + theme_bw() + xlab("qPCR T/S ratio") + ylab("TelSeq estimate")
+
+library(boot)
+set.seed(314159)
+temp2 = boot(teldata2, function(data, indices) { unlist(deming(data$telomere_qPCR_TSratio[indices], data$TelSeqFinalRecalibrated[indices])) }, R = 1e4)
+
+temp3 = data.frame(temp2$t)
+colnames(temp3) = c("slope", "intercept")
+ggplot(teldata2, aes(y = TelSeqFinalRecalibrated, x = telomere_qPCR_TSratio)) + geom_abline(aes(slope = slope, intercept = intercept), data = temp3[1:1000,], alpha = 0.03, lwd = 1) + geom_point(col = "red") + theme_bw() + xlab("qPCR T/S ratio") + ylab("TelSeq estimate")
+
+boot.ci(temp2, index = 2)
+cor.test(teldata2[,1], teldata2[,2], method = "kendall")
+
+```

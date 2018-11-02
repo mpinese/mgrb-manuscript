@@ -1,0 +1,252 @@
+---
+title: Rare variant burden comparisons
+output: html_document
+---
+
+# Data loading and processing
+
+```{r}
+library(ggplot2)
+library(plyr)
+library(reshape2)
+
+tbl = readRDS("data/rare_coding_varfreqs_mgrb_gnomad_swegen.rds")
+
+# Confirm that we are looking at unique autosomal SNVs only:
+stopifnot(all(tbl$contig %in% as.character(1:22)))
+stopifnot(all(nchar(as.character(unique(tbl$ref))) == 1))
+stopifnot(all(nchar(as.character(unique(tbl$alt))) == 1))
+stopifnot(any(duplicated(tbl$VARIANT)) == FALSE)
+```
+
+## Filtering and pathogenicity definitions
+
+```{r}
+# Define the cohorts to compare
+cohorts = c("mgrborig", "gnomad")
+
+
+# Define accessory variables
+temp.anypath = grepl("pathogenic", tbl$Clinvar201609.sig, ignore.case = TRUE)
+temp.anybenign = grepl("benign", tbl$Clinvar201609.sig, ignore.case = TRUE)
+temp.goodevidence = tbl$Clinvar201609.evidence %in% c("reviewed by expert panel", "practice guideline", "criteria provided, multiple submitters, no conflicts")
+tbl$Clinvar201609.call = NA
+tbl$Clinvar201609.call[temp.goodevidence & temp.anybenign & !temp.anypath] = "Benign"
+tbl$Clinvar201609.call[temp.goodevidence & !temp.anybenign & temp.anypath] = "Pathogenic"
+tbl$Condel_class = NA
+tbl$Condel_class[tbl$CONDEL_Score < 0.3] = "VeryLikelyNeutral"
+tbl$Condel_class[tbl$CONDEL_Score > 0.7] = "VeryLikelyDeleterious"
+tbl$Condel_class[tbl$CONDEL_Score < 0.4 & tbl$CONDEL_Score >= 0.3] = "LikelyNeutral"
+tbl$Condel_class[tbl$CONDEL_Score > 0.6 & tbl$CONDEL_Score <= 0.7] = "LikelyDeleterious"
+tbl$Condel_class[tbl$CONDEL_Score >= 0.4 & tbl$CONDEL_Score <= 0.6] = "Uncertain"
+tbl$Condel_class = ordered(tbl$Condel_class, levels = c("VeryLikelyNeutral", "LikelyNeutral", "Uncertain", "LikelyDeleterious", "VeryLikelyDeleterious"))
+
+# Define variants as either deleterious or neutral
+tbl$deleterious = tbl$Condel_class == "VeryLikelyDeleterious" & tbl$vep_consequence_terms != "synonymous_variant"
+tbl$neutral = tbl$vep_consequence_terms == "synonymous_variant"
+
+for (i in cohorts)
+{
+    tbl = cbind(tbl, 2*tbl[,sprintf("nAA_%s", i)] + tbl[,sprintf("nRA_%s", i)], 2*tbl[,sprintf("nRR_%s", i)] + tbl[,sprintf("nRA_%s", i)])
+    tbl = cbind(tbl, tbl[,(ncol(tbl)-1)] / (tbl[,(ncol(tbl)-1)] + tbl[,ncol(tbl)]))
+    colnames(tbl)[(ncol(tbl)-2):ncol(tbl)] = paste(c("nA", "nR", "AAF"), i, sep = "_")
+}
+
+# Drop any variant present at >= 1% in any cohort.
+temp.dropvars = c()
+for (i in cohorts)
+{
+    temp.dropvars = union(temp.dropvars, tbl$VARIANT[tbl[,sprintf("AAF_%s", i)] >= 0.01])
+}
+mean(tbl$VARIANT %in% temp.dropvars)
+# 1.67% of variants will be dropped
+
+tbl = tbl[!(tbl$VARIANT %in% temp.dropvars),]
+tbl = tbl[!is.na(tbl$deleterious),]
+tbl = tbl[!is.na(tbl$neutral),]
+```
+
+## Gene lists
+
+```{r}
+# VGGS comprehensive cardiac panel
+tbl$genelist.cardiac = tbl$gene_symbol %in% 
+    c("ABCC9","ACTA2","ACTC1","ACTN2","AKAP9","ANK2","ANKRD1","ANO5","BAG3","CACNA1C","CACNA2D1","CACNB2","CALM1","CALM2",
+        "CALM3","CALR3","CASQ2","CAV3","CBS","COL1A1","COL3A1","COL5A1","CRYAB","CSRP3","DES","DMD","DSC2","DSG2","DSP",
+        "DTNA","EMD","EYA4","FBN1","FBN2","FKTN","FLNA","FXN","GAA","GJA5","GLA","GPD1L","HCN4","ILK","JPH2","JUP","KCNA5",
+        "KCND3","KCNE1","KCNE1L","KCNE2","KCNE3","KCNH2","KCNJ2","KCNJ5","KCNJ8","KCNQ1","LAMP2","LDB3","LMNA","MED12",
+        "MYBPC3","MYH11","MYH6","MYH7","MYL2","MYL3","MYLK","MYLK2","MYOM1","MYOZ2","MYPN","NEBL","NEXN","NPPA","PDLIM3",
+        "PKP2","PLN","PRKAG2","PTPN11","RAF1","RBM20","RYR2","SCN10A","SCN1B","SCN3B","SCN4B","SCN5A","SGCD","SKI","SLC25A4",
+        "SLC2A10","SMAD3","SNTA1","TAZ","TCAP","TGFB2","TGFB3","TGFBR1","TGFBR2","TMEM43","TMPO","TNNC1","TNNI3","TNNT2",
+        "TPM1","TRDN","TTN","TTR","VCL")
+# VGGS arrhythmia panel
+tbl$genelist.arrhythmia = tbl$gene_symbol %in% 
+    c("AKAP9","ANK2","CACNA1C","CACNA2D1","CACNB2","CALM1","CALM2","CALM3","CASQ2","CAV3","GJA5","GPD1L","HCN4","KCNA5",
+        "KCND3","KCNE1","KCNE1L","KCNE2","KCNE3","KCNH2","KCNJ2","KCNJ5","KCNJ8","KCNQ1","NPPA","RYR2","SCN10A","SCN1B",
+        "SCN3B","SCN4B","SCN5A","SNTA1","TRDN")
+# VGGS cardiomyopathy panel
+tbl$genelist.cardiomyopathy = tbl$gene_symbol %in% 
+    c("ABCC9","ACTC1","ACTN2","ANKRD1","ANO5","BAG3","CALR3","CAV3","CRYAB","CSRP3","DES","DMD","DSC2","DSG2","DSP","DTNA",
+        "EMD","EYA4","FKTN","FXN","GAA","GLA","ILK","JPH2","JUP","LAMP2","LDB3","LMNA","MYBPC3","MYH6","MYH7","MYL2",
+        "MYL3","MYLK2","MYOM1","MYOZ2","MYPN","NEBL","NEXN","PDLIM3","PKP2","PLN","PRKAG2","PTPN11","RAF1","RBM20","RYR2",
+        "SCN5A","SGCD","SLC25A4","TAZ","TCAP","TGFB3","TMEM43","TMPO","TNNC1","TNNI3","TNNT2","TPM1","TTN","TTR","VCL")
+# COSMIC CGC (Census_allFri Oct 19 04_44_37 2018.tsv), Germline tier 1
+tbl$genelist.cancer = tbl$gene_symbol %in% 
+    c("ALK","APC","APOBEC3B","AR","ATM","ATR","AXIN2","BAP1","BARD1","BLM","BMPR1A","BRCA1","BRCA2","BRIP1","BUB1B","CDC73",
+        "CDH1","CDK4","CDKN1B","CDKN2A","CHEK2","CXCR4","CYLD","DDB2","DICER1","EGFR","ERBB4","ERCC2","ERCC3","ERCC4",
+        "ERCC5","EXT1","EXT2","FANCA","FANCC","FANCD2","FANCE","FANCF","FANCG","FAT1","FH","FLCN","GPC3","HNF1A","HRAS",
+        "KDR","KIT","LMO1","LZTR1","MAX","MEN1","MLH1","MPL","MSH2","MSH6","MUTYH","NBN","NF1","NF2","PALB2","PDGFRA",
+        "PHOX2B","PMS2","POLD1","POLE","POLQ","PRF1","PRKAR1A","PTCH1","PTEN","PTPN13","RB1","RECQL4","RET","SBDS","SDHA",
+        "SDHAF2","SDHB","SDHC","SDHD","SETBP1","SMAD4","SMARCB1","SMARCE1","SPOP","STAT3","STK11","SUFU","TERT","TGFBR2",
+        "TMEM127","TP53","TP63","TSC1","TSC2","TSHR","VHL","WAS","WRN","WT1","XPA","XPC")
+```
+
+## Final separation into metadata and genotype counts
+
+```{r}
+# Split the data into variant metadata, and per-cohort variant counts
+metadata = tbl[,!grepl("^n(AA|RA|RR|missing|A|R)_", colnames(tbl))]
+counts = list()
+for (i in cohorts)
+{
+    counts[[i]] = tbl[,paste(c("nRR", "nRA", "nAA", "nmissing"), i, sep = "_")]
+    colnames(counts[[i]]) = c("nRR", "nRA", "nAA", "nmissing")
+}
+
+rm(tbl)
+```
+
+# Burden testing
+
+```{r,echo=FALSE}
+# Define a statistic to compare RV burden in MGRB vs the other cohorts.
+# We need to calculate per cohort:
+#  * Expected number of deleterious genotype loci per individual (X)
+#  * Expected number of neutral genotype loci per individual (Y)
+#  * The final statistic Z = X/(X+Y)
+# We don't have any linkage information so we can only calculate the
+# expected number of variants per individual, assuming complete
+# LD.
+rvb_statistic = function(counts, deleterious, neutral)
+{
+    # (Optional)
+    # Drop any variants present at >= 1% in any cohort
+    # drop_rows = apply(sapply(counts, function(x) {
+    #     nA = 2*x[,"nAA"] + x[,"nRA"]
+    #     nR = 2*x[,"nRR"] + x[,"nRA"]
+    #     nA / (nA+nR) >= 0.01
+    # }), 1, any, na.rm = TRUE)
+    # counts = lapply(counts, function(x) x[!drop_rows,])
+    # metadata = metadata[!drop_rows,]
+
+    # Expected number of deleterious genotype loci per individual, assuming recessive
+    expected.deleterious.recessive = sapply(counts, function(x) sum(x[deleterious,"nAA"] / rowSums(x[deleterious, c("nAA", "nRA", "nRR")]), na.rm = TRUE))
+    # Likewise dominant
+    expected.deleterious.dominant = sapply(counts, function(x) sum((x[deleterious,"nAA"] + x[deleterious,"nRA"]) / rowSums(x[deleterious, c("nAA", "nRA", "nRR")]), na.rm = TRUE))
+    # Likewise neutral
+    expected.neutral.recessive = sapply(counts, function(x) sum(x[neutral,"nAA"] / rowSums(x[neutral, c("nAA", "nRA", "nRR")]), na.rm = TRUE))
+    expected.neutral.dominant = sapply(counts, function(x) sum((x[neutral,"nAA"] + x[neutral,"nRA"]) / rowSums(x[neutral, c("nAA", "nRA", "nRR")]), na.rm = TRUE))
+
+    c(recessive = expected.deleterious.recessive / (expected.deleterious.recessive + expected.neutral.recessive), dominant = expected.deleterious.dominant / (expected.deleterious.dominant + expected.neutral.dominant))
+}
+
+
+multi4_draw = function(nmat, size = rowSums(nmat))
+{
+    # Resample the multinomial counts in nmat.
+    # nmat is a m x 4 matrix of counts, each row a multinomial 
+    # observation that will be resampled independently with
+    # size samples.  size defaults to rowSums(nmat), which
+    # corresponds to a bootstrap resample.
+    # Returns a resampled matrix of the same dimension of nmat,
+    # where each row of the matrix sums to size.
+    # Implemented as serial binomial samples.
+    n = rowSums(nmat)
+    m = nrow(nmat)
+    p1 = nmat[,1] / n
+    p2 = nmat[,2] / (n - nmat[,1])
+    p3 = nmat[,3] / (nmat[,3] + nmat[,4])
+    p1[is.na(p1)] = 0
+    p2[is.na(p2)] = 0
+    p3[is.na(p3)] = 0
+    r1 = rbinom(m, size, p1)
+    r2 = rbinom(m, size - r1, p2)
+    r3 = rbinom(m, size - r1 - r2, p3)
+    r4 = size - r1 - r2 - r3
+    result = cbind(r1, r2, r3, r4)
+    colnames(result) = colnames(nmat)
+    result
+}
+
+
+rvb_resample_iter = function(counts, deleterious, neutral, size)
+{
+    # Calculate rvb_statistic on a single resampled draw of the data
+    resampled_counts = lapply(counts, multi4_draw, size = size)
+    rvb_statistic(resampled_counts, deleterious, neutral)
+}
+
+
+rvb_resample = function(counts, deleterious, neutral, subset, size, B)
+{
+    counts = lapply(counts, function(x) x[subset,])
+    deleterious = deleterious[subset]
+    neutral = neutral[subset]
+    laply(1:B, function(i) rvb_resample_iter(counts, deleterious, neutral, size))
+}
+
+
+# P-values are approximate because of ties
+rvb_test = function(boot_result)
+{
+    cohorts = unique(gsub(".*\\.", "", colnames(boot_result)))
+    mode = unique(gsub("\\..*", "", colnames(boot_result)))
+    stopifnot(length(cohorts) > 1)
+
+    tests = expand.grid(ref_cohort = cohorts[[1]], test_cohort = cohorts[-1], mode = mode)
+    ddply(tests, .(ref_cohort, test_cohort, mode), function(d) {
+        delta = boot_result[,sprintf("%s.%s", d$mode, d$ref_cohort)] - boot_result[,sprintf("%s.%s", d$mode, d$test_cohort)]
+        n_lesser = sum(delta < 0, na.rm = TRUE)
+        n_greater = sum(delta > 0, na.rm = TRUE)
+        n_identical = sum(delta == 0, na.rm = TRUE)
+        n_invalid = length(delta) - n_lesser - n_greater - n_identical
+        pval_greater = (n_lesser + n_identical/2 + n_invalid/2 + 0.5) / (n_lesser + n_greater + n_identical + n_invalid + 1)
+        pval_lesser = (n_greater + n_identical/2 + n_invalid/2 + 0.5) / (n_lesser + n_greater + n_identical + n_invalid + 1)
+        d$direction = ifelse(n_lesser > n_greater, "ref<test", "test<ref")
+        d$p.value = min(1, 2*min(pval_lesser, pval_greater))
+        d
+    })
+}
+```
+
+## All annotated genes
+```{r, dev='svg'}
+set.seed(314159)
+rvb_boot = rvb_resample(counts, metadata$deleterious, metadata$neutral, TRUE, size = 1000, B = 1000)
+rvb_test(rvb_boot)
+ggplot(melt(rvb_boot, varnames = c("bootstrap_index", "measure"), value.name = "statistic"), aes(x = statistic, col = measure)) + stat_ecdf() + theme_bw()
+```
+
+## Arrhythmia genes
+```{r, dev='svg'}
+set.seed(314159)
+rvb_boot = rvb_resample(counts, metadata$deleterious, metadata$neutral, metadata$genelist.arrhythmia, size = 1000, B = 1000)
+rvb_test(rvb_boot)
+ggplot(melt(rvb_boot, varnames = c("bootstrap_index", "measure"), value.name = "statistic"), aes(x = statistic, col = measure)) + stat_ecdf() + theme_bw()
+```
+
+## Cardiomyopathy genes
+```{r, dev='svg'}
+set.seed(314159)
+rvb_boot = rvb_resample(counts, metadata$deleterious, metadata$neutral, metadata$genelist.cardiomyopathy, size = 1000, B = 1000)
+rvb_test(rvb_boot)
+ggplot(melt(rvb_boot, varnames = c("bootstrap_index", "measure"), value.name = "statistic"), aes(x = statistic, col = measure)) + stat_ecdf() + theme_bw()
+```
+
+## Cancer genes
+```{r, dev='svg'}
+set.seed(314159)
+rvb_boot = rvb_resample(counts, metadata$deleterious, metadata$neutral, metadata$genelist.cancer, size = 1000, B = 1000)
+rvb_test(rvb_boot)
+ggplot(melt(rvb_boot, varnames = c("bootstrap_index", "measure"), value.name = "statistic"), aes(x = statistic, col = measure)) + stat_ecdf() + theme_bw()
+```

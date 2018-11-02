@@ -1,0 +1,4 @@
+packrat/lib*/
+tmp/
+common_variants_*/
+misc/

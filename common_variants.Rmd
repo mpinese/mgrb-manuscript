@@ -1,0 +1,569 @@
+---
+title: Common Variant Burden Analysis
+output: html_document
+---
+
+# Data loading and cohort selection
+
+## Loading
+```{r}
+afs_orig = read.csv("data/MGRB_GnomAD_SweGen_cancer_UKBB_AFs_outerjoined_ss-auto-gwas-snps_hcr.csv.xz", stringsAsFactors = FALSE, header = TRUE)
+models_orig = read.csv("data/manual_polygenic_scores.hcr_tag_rescued.csv", stringsAsFactors = FALSE, header = TRUE)
+
+# Key allele frequencies by VID
+afs_orig$vid = paste(afs_orig$chrom, afs_orig$pos, afs_orig$ref, afs_orig$alt, sep = ":")
+afs_orig = afs_orig[,!(colnames(afs_orig) %in% c("chrom", "pos", "ref", "alt"))]
+
+# Add gnomad AFs to the models for imputation of missing variants
+temp.gnomad_af = (afs_orig$nAA_gnomad*2 + afs_orig$nRA_gnomad) / (2*(afs_orig$nAA_gnomad + afs_orig$nRA_gnomad + afs_orig$nRR_gnomad))
+models_orig$aaf = temp.gnomad_af[match(models_orig$vid, afs_orig$vid)]
+
+# Create a full UKBB cohort by combining the age-stratified numbers
+afs_orig$nRR_ukbb = afs_orig$nRR_ukbb_0_55 + afs_orig$nRR_ukbb_55_60 + afs_orig$nRR_ukbb_60_65 + afs_orig$nRR_ukbb_65_70 + afs_orig$nRR_ukbb_70_75 + afs_orig$nRR_ukbb_75_inf
+afs_orig$nRA_ukbb = afs_orig$nRA_ukbb_0_55 + afs_orig$nRA_ukbb_55_60 + afs_orig$nRA_ukbb_60_65 + afs_orig$nRA_ukbb_65_70 + afs_orig$nRA_ukbb_70_75 + afs_orig$nRA_ukbb_75_inf
+afs_orig$nAA_ukbb = afs_orig$nAA_ukbb_0_55 + afs_orig$nAA_ukbb_55_60 + afs_orig$nAA_ukbb_60_65 + afs_orig$nAA_ukbb_65_70 + afs_orig$nAA_ukbb_70_75 + afs_orig$nAA_ukbb_75_inf
+afs_orig$nmissing_ukbb = afs_orig$nmissing_ukbb_0_55 + afs_orig$nmissing_ukbb_55_60 + afs_orig$nmissing_ukbb_60_65 + afs_orig$nmissing_ukbb_65_70 + afs_orig$nmissing_ukbb_70_75 + afs_orig$nmissing_ukbb_75_inf
+
+# Convert afs from wide to long format
+library(reshape2)
+afs_long = melt(afs_orig, id.vars = c("rsid", "negstrand", "vid"), value.name = "count")
+afs_long$cohort = gsub("^n(RR|RA|AA|missing)_", "", afs_long$variable)
+afs_long$variable = gsub("_.*", "", afs_long$variable)
+afs = dcast(afs_long, vid + rsid + negstrand + cohort ~ variable, value.var = "count")
+afs = afs[,c("vid", "rsid", "negstrand", "cohort", "nRR", "nRA", "nAA", "nmissing")]
+
+# Exclude ASRB samples -- prelim examination suggests they are rather
+# poor quality, and we are not interested in their PRS distributions
+# anyway.  Also exclude the various MGRB filtration options, as they
+# apply only to rare variants.  Exclude SweGen as we don't have a good
+# HQ bed for it.
+cohorts.sel = c(
+    "mgrborig", 
+    "gnomad", 
+    "ukbb", "ukbb_0_55", "ukbb_55_60", "ukbb_60_65", "ukbb_65_70", "ukbb_70_75", "ukbb_75_inf",
+    "cancercrc", "cancermel", "cancernms", "cancerbrca_f", "cancerpca_m",
+    "nocancer", "nocancer_f", "nocancer_m", "mgrborig_f", "mgrborig_m")
+cohorts.main = c("mgrborig", "gnomad", "ukbb")
+afs = afs[afs$cohort %in% cohorts.sel,]
+```
+
+
+## Model selection
+Choose polygenic models with at least 10 loci, with the exception of ShortLifespan:Deelen:10.1093/hmg/ddu139 (only six loci passing filters).  For cancers, choose polygenic models only for cancers with a positive control cohort.  In the case of multiple models for the same disorder, choose the most recent original publication where possible (ie exclude "meta" signatures if a good original report is available).
+
+```{r}
+# Excluded due to insufficient size:
+    # "CancerOfBladder:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "LymphoidLeukemiaAcute:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "LymphoidLeukemiaChronic:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "MalignantNeoplasmOfTestis:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "NonHodgkinsLymphoma:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "PancreaticCancer:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "APOE_rs429358:NA:NA",
+# Excluded because a better alternative was available
+    # "CancerOfProstate:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "ColorectalCancer:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "MelanomasOfSkin:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "BreastCancer:Li:10.1038/gim.2016.43",
+    # "BreastCancerFemale:Fritsche:10.1016/j.ajhg.2018.04.001",
+# Excluded because of issues with population-specific alleles between UK and European popns
+    # "BasalCellCarcinoma:Chahal:10.1038/ncomms12510",
+    # "BasalCellCarcinoma:Fritsche:10.1016/j.ajhg.2018.04.001",
+models.sel = c(
+    "AF:Lubitz:10.1161/CIRCULATIONAHA.116.024143",
+    "DiastolicBP:Warren:10.1038/ng.3768",
+    "EOCAD:Theriault:10.1161/circgen.117.001849",
+    "PulsePressure:Warren:10.1038/ng.3768",
+    "SystolicBP:Warren:10.1038/ng.3768",
+
+    "AlzheimersDisease:Lambert:10.1038/ng.2802",
+    "ShortLifespan:Deelen:10.1093/hmg/ddu139",
+
+    "Height:Wood:10.1038/ng.3097",
+
+    "BreastCancer:Michailidou:10.1038/nature24284",
+    "ColorectalCancer:Schumacher:10.1038/ncomms8138",
+    "Melanoma:Law:10.1038/ng.3373",
+    "ProstateCancer:Hoffmann:10.1158/2159-8290.CD-15-0315"
+)
+models = models_orig[models_orig$id %in% models.sel,]
+```
+
+
+## Variant filtering and imputation
+
+```{r}
+# Drop variants with low genotyping rate in any cohort in which that
+# variant was detected.  Use the threshold of 97% genotyping rate
+library(plyr)
+temp.lowgt = ddply(afs[!is.na(afs$nRR),], .(cohort), function(d) mean(d$nmissing / (d$nRR + d$nRA + d$nAA + d$nmissing) >= 0.03))
+temp.lowgt
+# The UKBB samples have rather a lot of dropouts here: ~ 5% of loci
+# have a gt rate under 97%.
+
+temp.gt_rate = 1 - daply(afs[!is.na(afs$nRR),], .(vid), function(d) {
+    d = d[d$cohort %in% cohorts.main,]
+    max(d$nmissing / (d$nRR + d$nRA + d$nAA + d$nmissing))})
+mean(temp.gt_rate < 0.97)
+afs = afs[afs$vid %in% names(temp.gt_rate)[temp.gt_rate >= 0.97],]
+mean(models$vid %in% names(temp.gt_rate)[temp.gt_rate >= 0.97])
+# ~5.0% of model loci lost by this filter
+models = models[models$vid %in% names(temp.gt_rate)[temp.gt_rate >= 0.97],]
+
+# Create a set of AFs for variants that have VCF entries in every cohort.  
+# Note that given the relatively small size of some cohorts, this tends to 
+# preferentially exclude rare variants from consideration, and will probably 
+# attenuate the GRS differences.
+afs.nmissing_per_cohort = tapply(is.na(afs$nRR[afs$cohort %in% cohorts.main]), afs$vid[afs$cohort %in% cohorts.main], sum)
+afs.nomissing = afs[!(afs$vid %in% names(afs.nmissing_per_cohort[afs.nmissing_per_cohort > 0])),]
+nrow(afs.nomissing) / nrow(afs)
+
+mean(models$vid %in% afs.nomissing$vid)
+```
+
+# Cohort AF comparisons
+
+Note that we examine only loci in the PRSes.
+
+## Overall distribution
+
+```{r, dev='png'}
+# temp.model_vids = intersect(afs.nomissing$vid, models$vid)
+# temp.afs = afs.nomissing[afs.nomissing$vid %in% temp.model_vids,]
+temp.afs = afs.nomissing
+temp.afs$fA = (temp.afs$nAA*2 + temp.afs$nRA) / (2*(temp.afs$nAA + temp.afs$nRA + temp.afs$nRR))
+temp.afs = acast(temp.afs, vid ~ cohort, value.var = "fA", fill = NA)
+pairs(temp.afs[,cohorts.main], pch = ".")
+library(corrplot)
+corrplot.mixed(cor(temp.afs[,cohorts.main]), lower = "ellipse", upper = "number")
+
+temp.overall_cohort.pvals = sapply(cohorts.main[1:(length(cohorts.main)-1)], function(cohort_1) {
+    cohort_1_idx = which(cohorts.main == cohort_1)
+    afs_1 = temp.afs[,cohort_1]
+    sapply(cohorts.main[(cohort_1_idx+1):length(cohorts.main)], function(cohort_2) {
+        afs_2 = temp.afs[,cohort_2]
+        test = wilcox.test(afs_1 - afs_2)
+        test$p.value
+    })
+})
+
+temp.overall_cohort.pvals
+p.adjust(unlist(temp.overall_cohort.pvals), "holm")
+
+temp.af.gnomad = temp.afs[,"gnomad"]
+temp.af.ukbb = temp.afs[,"ukbb"]
+temp.af.mgrb = temp.afs[,"mgrborig"]
+hist(temp.af.ukbb - temp.af.mgrb, breaks = c(-Inf, seq(-0.05, 0.05, 0.001), Inf), col = "grey", border = FALSE, xlim = c(-0.05, 0.05))
+hist(temp.af.ukbb - temp.af.gnomad, breaks = c(-Inf, seq(-0.05, 0.05, 0.001), Inf), col = "grey", border = FALSE, xlim = c(-0.05, 0.05))
+# Interestingly much higher AF diversity for gnomAD, despite it being a larger cohort.  Population effects?
+t.test(temp.af.ukbb - temp.af.mgrb)
+t.test(temp.af.ukbb - temp.af.gnomad)
+```
+There is a very slight but statistically significant skew in the AFs between UKBB and MGRB/gnomAD: UKBB has ever so slightly lower representation of the alt allele than both MGRB (0.0003360821 less) and gnomAD (0.0004744416 less).  I suspect a subtle technical effect.
+
+To address: is this of concern for the PRS calculations?  This slight bias would be of concern if both:
+
+1. The PRS allele effect direction was consistently skewed either to or away from the reference allele, and
+2. The magnitude of sum(skew x beta) was significant relative to any inter-cohort PRS differences.
+
+2 is difficult to address before we calculate the actual PRS distributions.  1 however we can test now.
+
+```{r}
+pheno_alleles = read.csv("data/phenotype_associated_alleles.all.csv", stringsAsFactors = FALSE)
+pheno_alleles = pheno_alleles[pheno_alleles$vid %in% afs.nomissing$vid,]
+# Keep only alleles with consistent effect on a phenotype class
+pheno_alleles = ddply(pheno_alleles, .(class, vid), function(d) {
+    if (nrow(d) > 1 && (all(d$direction == 1) || all(d$direction == -1)))
+        d = d[1,,drop=FALSE]
+    d
+})
+write.csv(pheno_alleles, "data/phenotype_associated_alleles.filt.csv", quote = FALSE, row.names = FALSE)
+pheno_alleles.tests = ddply(pheno_alleles, .(class), function(d) {
+    af.gnomad = temp.afs[d$vid, "gnomad"]
+    af.mgrb = temp.afs[d$vid, "mgrborig"]
+    af.ukbb = temp.afs[d$vid, "ukbb"]
+
+    daf.mgrb_gnomad = (af.mgrb - af.gnomad) * d$direction
+    daf.mgrb_ukbb = (af.mgrb - af.ukbb) * d$direction
+
+    n.mgrb_gt_gnomad.protective = sum(af.mgrb > af.gnomad & d$direction == -1)
+    n.mgrb_gt_gnomad.deleterious = sum(af.mgrb > af.gnomad & d$direction == 1)
+    n.gnomad_gt_mgrb.protective = sum(af.mgrb < af.gnomad & d$direction == -1)
+    n.gnomad_gt_mgrb.deleterious = sum(af.mgrb < af.gnomad & d$direction == 1)
+
+    ft.mgrb_gnomad = fisher.test(matrix(c(n.mgrb_gt_gnomad.protective, n.gnomad_gt_mgrb.protective, n.mgrb_gt_gnomad.deleterious, n.gnomad_gt_mgrb.deleterious), nrow = 2))
+
+    n.mgrb_gt_ukbb.protective = sum(af.mgrb > af.ukbb & d$direction == -1)
+    n.mgrb_gt_ukbb.deleterious = sum(af.mgrb > af.ukbb & d$direction == 1)
+    n.ukbb_gt_mgrb.protective = sum(af.mgrb < af.ukbb & d$direction == -1)
+    n.ukbb_gt_mgrb.deleterious = sum(af.mgrb < af.ukbb & d$direction == 1)
+    ft.mgrb_ukbb = fisher.test(matrix(c(n.mgrb_gt_ukbb.protective, n.ukbb_gt_mgrb.protective, n.mgrb_gt_ukbb.deleterious, n.ukbb_gt_mgrb.deleterious), nrow = 2))
+
+    data.frame(
+        class = d$class[[1]], 
+        ref_cohort = "mgrb", 
+        test_cohort = c("gnomad", "ukbb"), 
+        deltaaf_direction.median = c(median(daf.mgrb_gnomad), median(daf.mgrb_ukbb)),
+        p.value.wilcox = c(wilcox.test(daf.mgrb_gnomad)$p.value, wilcox.test(daf.mgrb_ukbb)$p.value),
+        or.fisher = c(ft.mgrb_gnomad$estimate, ft.mgrb_ukbb$estimate),
+        cil.fisher = c(ft.mgrb_gnomad$conf.int[[1]], ft.mgrb_ukbb$conf.int[[1]]),
+        ciu.fisher = c(ft.mgrb_gnomad$conf.int[[2]], ft.mgrb_ukbb$conf.int[[2]]),
+        p.value.fisher = c(ft.mgrb_gnomad$p.value, ft.mgrb_ukbb$p.value))
+})
+
+pheno_alleles.tests$p.value.wilcox.holm = p.adjust(pheno_alleles.tests$p.value.wilcox, "holm")
+pheno_alleles.tests$p.value.fisher.holm = p.adjust(pheno_alleles.tests$p.value.fisher, "holm")
+pheno_alleles.tests
+```
+
+Save the allele freqs for a supp table
+```{r}
+temp.nRR = acast(afs.nomissing, vid ~ cohort, value.var = "nRR", fill = NA)[,cohorts.main]
+temp.nRA = acast(afs.nomissing, vid ~ cohort, value.var = "nRA", fill = NA)[,cohorts.main]
+temp.nAA = acast(afs.nomissing, vid ~ cohort, value.var = "nAA", fill = NA)[,cohorts.main]
+temp.nmissing = acast(afs.nomissing, vid ~ cohort, value.var = "nmissing", fill = NA)[,cohorts.main]
+temp.AC = 2*temp.nAA + temp.nRA
+temp.AN = 2*(temp.nRR + temp.nRA + temp.nAA)
+temp = cbind(temp.AC, temp.AN)
+colnames(temp)[1:ncol(temp.AC)] = paste("AC.", colnames(temp.AC), sep = "")
+colnames(temp)[(ncol(temp.AC)+1):ncol(temp)] = paste("AN.", colnames(temp.AN), sep = "")
+colnames(temp) = gsub("mgrborig", "mgrb", colnames(temp))
+
+# Suppress generation of the file with UKBB data:
+# write.csv(temp, file = "data/gwas_afs.csv", row.names = TRUE)
+
+# We likely don't have permission to release UKBB AFs on such a broad scale, so
+# generate a no UKBB set also:
+write.csv(temp[,!grepl("ukbb", colnames(temp))], file = "data/gwas_afs_noukbb.csv", row.names = TRUE)
+```
+
+
+## Individual loci
+
+```{r}
+g.test = function(tbl)
+{
+    expected = outer(rowSums(tbl), colSums(tbl)) / sum(tbl)
+    logoe = log(tbl/expected)
+    logoe[tbl == 0] = 0
+    stat = 2*sum(tbl*logoe)
+    pchisq(stat, prod(dim(tbl)-1), lower.tail = FALSE)
+}
+
+temp.locus_cohort.pvals = ddply(afs.nomissing[afs.nomissing$vid %in% temp.model_vids & afs.nomissing$cohort %in% cohorts.main,], .(vid), function(d) {
+    nR = d$nRR*2 + d$nRA
+    nA = d$nAA*2 + d$nRA
+    g.test(cbind(nR, nA))
+    # g.test(as.matrix(d[,c("nRR", "nRA", "nAA")]))
+})
+colnames(temp.locus_cohort.pvals)[2] = "p.value"
+temp.locus_cohort.pvals$p.value.mtc = p.adjust(temp.locus_cohort.pvals$p.value, "BH")
+# temp.locus_cohort.pvals$p.value.mtc is now calibrated for average false rejection rate 
+# (ie calling a SNP population-associated when it in fact isn't).
+
+mean(temp.locus_cohort.pvals$p.value.mtc < 0.01)
+
+temp.locus_cohort.maxdeltaaf = ddply(afs.nomissing[afs.nomissing$vid %in% temp.model_vids & afs.nomissing$cohort %in% cohorts.main,], .(vid), function(d) {
+    nR = d$nRR*2 + d$nRA
+    nA = d$nAA*2 + d$nRA
+    AAF = nA/(nA+nR)
+    max(AAF) - min(AAF)
+})
+colnames(temp.locus_cohort.maxdeltaaf)[2] = "maxdeltaaaf"
+
+temp.locus_cohort.maxdeltaaf[order(temp.locus_cohort.maxdeltaaf$maxdeltaaaf),]
+hist(temp.locus_cohort.maxdeltaaf$maxdeltaaaf)
+
+# On the basis of this histogram, set a max delta aaf threshold of
+# 4%.
+mean(temp.locus_cohort.maxdeltaaf$maxdeltaaaf < 0.04)
+temp.sel_loci = temp.locus_cohort.maxdeltaaf$vid[temp.locus_cohort.maxdeltaaf$maxdeltaaaf < 0.04]
+afs = afs[afs$vid %in% temp.sel_loci,]
+models = models[models$vid %in% temp.sel_loci,]
+```
+
+<!-- Drop loci with AF difference > 5% between any of the three major cohorts.
+```{r}
+temp.afs = afs.nomissing
+temp.afs$fA = (temp.afs$nAA*2 + temp.afs$nRA) / (2*(temp.afs$nAA + temp.afs$nRA + temp.afs$nRR))
+temp.afs = acast(temp.afs, vid ~ cohort, value.var = "fA", fill = NA)
+temp.drop.mgrb_gnomad = abs(temp.afs[,"mgrborig"] - temp.afs[,"gnomad"]) > 0.05
+temp.drop.mgrb_ukbb = abs(temp.afs[,"mgrborig"] - temp.afs[,"ukbb"]) > 0.05
+temp.drop.ukbb_gnomad = abs(temp.afs[,"ukbb"] - temp.afs[,"gnomad"]) > 0.05
+temp.drop = temp.drop.mgrb_gnomad | temp.drop.mgrb_ukbb | temp.drop.ukbb_gnomad
+mean(temp.drop)
+
+afs.nomissing = afs.nomissing[!(afs.nomissing$vid %in% ),]
+``` -->
+
+
+
+# Compare PRS distributions between cohorts
+
+```{r, echo=FALSE}
+library(plyr)
+
+cohort_mean_score = function(afs, model)
+{
+    shared_vars = intersect(afs$vid, model$vid)
+
+    afs = afs[match(shared_vars, afs$vid),,drop=FALSE]
+
+    afs$af = (2*afs$nAA + afs$nRA) / (2*(afs$nAA + afs$nRA + afs$nRR))
+    afs = afs[!is.na(afs$af),]
+
+    if (length(shared_vars) == 0)
+        warning(sprintf("No variants in GRS %s genotyped in cohort %s", paste(unique(model$id), collapse = ","), paste(unique(afs$cohort), collapse = ",")))
+    if (length(shared_vars) < 0.7*nrow(model))
+        warning(sprintf("Only %.0f%% of variants in GRS %s genotyped in cohort %s", length(shared_vars)/nrow(model)*100, paste(unique(model$id), collapse = ","), paste(unique(afs$cohort), collapse = ",")))
+
+    model_missing = model[!(model$vid %in% shared_vars),,drop=FALSE]
+    model_present = model[match(shared_vars, model$vid),,drop=FALSE]
+
+    stopifnot(afs$vid == model_present$vid)
+
+    score_missing = ifelse(nrow(model_missing) > 0, 2*sum(model_missing$aaf*model_missing$coef), 0)
+    score_present = ifelse(nrow(afs) > 0, 2*sum(afs$af*model_present$coef), 0)
+
+    (score_missing + score_present) / nrow(model)
+}
+
+
+multi4_boot_draw = function(nmat)
+{
+    # Perform a bootstrap resample of the multinomial counts in nmat.
+    # nmat is a m x 4 matrix of counts, each row a multinomial observation.
+    # Each row will be bootstrap resampled independently.  Returns a
+    # resampled matrix of the same dimension of nmat.
+    # Implemented as serial binomial samples.
+    n = rowSums(nmat)
+    m = nrow(nmat)
+    p1 = nmat[,1] / n
+    p2 = nmat[,2] / (n - nmat[,1])
+    p3 = nmat[,3] / (nmat[,3] + nmat[,4])
+    p1[is.na(p1)] = 0
+    p2[is.na(p2)] = 0
+    p3[is.na(p3)] = 0
+    r1 = rbinom(m, n, p1)
+    r2 = rbinom(m, n - r1, p2)
+    r3 = rbinom(m, n - r1 - r2, p3)
+    r4 = n - r1 - r2 - r3
+    cbind(r1, r2, r3, r4)
+}
+
+
+cohort_mean_score_bootdraw = function(afs, model, drawmissing = TRUE)
+{
+    # Compute the mean GRS for a bootstrap resample of a cohort.
+    # This isn't possible exactly as we only have marginal genotype 
+    # frequencies, and no idea of linkage.  Given that limitation, 
+    # approximate the bootstrap distribution by supposing that all 
+    # loci are unlinked.  Two notes on this approach:
+    #  1. It's reasonable in the absence of structure within the 
+    #     populations, and linkage between loci (both ok assumptions).
+    #  2. This is effectively a parametric bootstrap, not a resampling
+    #     based one.
+    
+    nmat = afs[,c("nRR", "nRA", "nAA", "nmissing")]
+    if (drawmissing)
+        nmat[,4] = 0
+
+    rnmat = multi4_boot_draw(nmat)
+    afs$nRR = rnmat[,1]
+    afs$nRA = rnmat[,2]
+    afs$nAA = rnmat[,3]
+
+    if (drawmissing)
+        afs$nmissing = rnmat[,4]
+    else
+        afs$nmissing = afs[,c("nmissing")]
+
+    cohort_mean_score(afs, model)
+}
+
+
+cohort_mean_score_boot = function(afs, model, B, ...)
+{
+    afs = afs[afs$vid %in% model$vid,,drop=FALSE]
+    replicate(B, cohort_mean_score_bootdraw(afs, model, ...))
+}
+
+
+boot_tests = function(boot_scores, B, ci_level = 0.95)
+{
+    cohorts = ordered(dimnames(boot_scores)[[2]])
+    tests = expand.grid(cohort1 = cohorts, cohort2 = cohorts, model = dimnames(boot_scores)[[1]])
+    # Note inefficient: does over 2x the number of tests strictly necessary.
+    # This is to make later subsetting easier.  To restore efficiency, uncomment:
+    # tests = tests[tests$cohort1 < tests$cohort2,]
+    tests$cohort1 = as.character(tests$cohort1)
+    tests$cohort2 = as.character(tests$cohort2)
+    ddply(tests, .(cohort1, cohort2, model), function(d) {
+        scores1 = sample(boot_scores[d$model, d$cohort1,], B, replace = TRUE)
+        scores2 = sample(boot_scores[d$model, d$cohort2,], B, replace = TRUE)
+        delta = scores1 - scores2
+        cls = quantile(delta, c((1 - ci_level)/2, 1 - (1 - ci_level)/2))
+        n_lower = sum(delta < 0)
+        n_upper = sum(delta > 0)
+        pval = (0.5 + min(n_lower, n_upper)) * 2 / (B+1)
+        data.frame(cohort1 = d$cohort1, cohort2 = d$cohort2, model = d$model, delta.median = median(delta), delta.lcl = cls[[1]], delta.ucl = cls[[2]], p.value = pval)
+    }, .progress = "text")
+}
+
+
+dafplot = function(afs1, afs2, model, ...)
+{
+    shared_vars = intersect(intersect(afs1$vid, afs2$vid), model$vid)
+    afs1 = afs1[afs1$vid %in% shared_vars,]
+    afs2 = afs2[afs2$vid %in% shared_vars,]
+    model = model[model$vid %in% shared_vars,]
+
+    maf1 = (2*afs1$nAA + afs1$nRA) / (afs1$nAA + afs1$nRA + afs1$nRR) / 2
+    maf2 = (2*afs2$nAA + afs2$nRA) / (afs2$nAA + afs2$nRA + afs2$nRR) / 2
+
+    maf1 = maf1[match(shared_vars, afs1$vid)]
+    maf2 = maf2[match(shared_vars, afs2$vid)]
+    coefs = model$coef[match(shared_vars, model$vid)]
+
+    dmaf = maf1 - maf2
+
+    plot(coefs, dmaf, ...)
+    fit = try(loess(dmaf ~ coefs, degree = 0), silent = TRUE)
+    if (class(fit) != "try-error")
+    {
+        plot.x = seq(min(coefs), max(coefs), length.out = 100)
+        plot.y = predict(fit, plot.x)
+        lines(plot.x, plot.y)
+    }
+    abline(h = 0, lty = "dashed", col = "cornflowerblue", lwd = 2)
+}
+```
+
+## PRS calculation
+
+```{r, cache=TRUE, results='hide', message=FALSE, warning=FALSE}
+scores = daply(expand.grid(cohort = cohorts.sel, model = models.sel), .(model, cohort), function(cm) 
+    cohort_mean_score(afs.nomissing[afs.nomissing$cohort == cm$cohort,], models[models$id == cm$model,]), .progress = "text")
+
+set.seed(314159)
+boot_scores = daply(expand.grid(cohort = cohorts.sel, model = models.sel), .(model, cohort), function(cm) 
+    cohort_mean_score_boot(afs.nomissing[afs.nomissing$cohort == cm$cohort,], models[models$id == cm$model,], B = 5000, drawmissing = TRUE), .progress = "text")
+```
+
+```{r, cache=TRUE, results='hide', message=FALSE, warning=FALSE}
+# Calculate all approximate tests, but obviously we will discard most
+# of the outputs.
+set.seed(314159)
+boot_scores_tests = boot_tests(boot_scores, B = 100000)
+```
+
+```{r}
+saveRDS(list(
+    scores = scores,
+    boot = boot_scores,
+    tests = boot_scores_tests), file = "common_variants.rds")
+```
+
+## PRS distributions
+
+```{r, dev='svg'}
+library(gplots)
+library(viridis)
+heatmap.2(scores, trace = "none", scale = "row", dendrogram = "none", Colv = FALSE, Rowv = FALSE, col = viridis(100), margin = c(7, 25))
+
+library(ggplot2)
+ggplot(adply(boot_scores, c(1,2), function(x) data.frame(boot_score = x)), aes(x = boot_score, col = cohort)) + stat_ecdf() + facet_wrap(~ model, scales = "free") + theme_bw()
+```
+
+
+## PRS tests
+
+Examine relevant test p-values.
+
+```{r}
+target_tests = list(
+    list(model = "AF:Lubitz:10.1161/CIRCULATIONAHA.116.024143",             cohort1 = "gnomad",        cohort2 = "mgrborig" ),
+    list(model = "DiastolicBP:Warren:10.1038/ng.3768",                      cohort1 = "gnomad",        cohort2 = "mgrborig" ),
+    list(model = "EOCAD:Theriault:10.1161/circgen.117.001849",              cohort1 = "gnomad",        cohort2 = "mgrborig" ),
+    list(model = "PulsePressure:Warren:10.1038/ng.3768",                    cohort1 = "gnomad",        cohort2 = "mgrborig" ),
+    list(model = "SystolicBP:Warren:10.1038/ng.3768",                       cohort1 = "gnomad",        cohort2 = "mgrborig" ),
+
+    list(model = "AlzheimersDisease:Lambert:10.1038/ng.2802",               cohort1 = "gnomad",        cohort2 = "mgrborig" ),
+    list(model = "ShortLifespan:Deelen:10.1093/hmg/ddu139",                 cohort1 = "gnomad",        cohort2 = "mgrborig" ),
+
+    list(model = "BreastCancer:Michailidou:10.1038/nature24284",            cohort1 = "gnomad",        cohort2 = "mgrborig" ),
+    list(model = "ColorectalCancer:Schumacher:10.1038/ncomms8138",          cohort1 = "gnomad",        cohort2 = "mgrborig" ),
+    list(model = "Melanoma:Law:10.1038/ng.3373",                            cohort1 = "gnomad",        cohort2 = "mgrborig" ),
+    list(model = "ProstateCancer:Hoffmann:10.1158/2159-8290.CD-15-0315",    cohort1 = "gnomad",        cohort2 = "mgrborig" ),
+
+
+    list(model = "AF:Lubitz:10.1161/CIRCULATIONAHA.116.024143",             cohort1 = "ukbb",          cohort2 = "mgrborig" ),
+    list(model = "DiastolicBP:Warren:10.1038/ng.3768",                      cohort1 = "ukbb",          cohort2 = "mgrborig" ),
+    list(model = "EOCAD:Theriault:10.1161/circgen.117.001849",              cohort1 = "ukbb",          cohort2 = "mgrborig" ),
+    list(model = "PulsePressure:Warren:10.1038/ng.3768",                    cohort1 = "ukbb",          cohort2 = "mgrborig" ),
+    list(model = "SystolicBP:Warren:10.1038/ng.3768",                       cohort1 = "ukbb",          cohort2 = "mgrborig" ),
+
+    list(model = "AlzheimersDisease:Lambert:10.1038/ng.2802",               cohort1 = "ukbb",          cohort2 = "mgrborig" ),
+    list(model = "ShortLifespan:Deelen:10.1093/hmg/ddu139",                 cohort1 = "ukbb",          cohort2 = "mgrborig" ),
+
+    list(model = "BreastCancer:Michailidou:10.1038/nature24284",            cohort1 = "ukbb",          cohort2 = "mgrborig" ),
+    list(model = "ColorectalCancer:Schumacher:10.1038/ncomms8138",          cohort1 = "ukbb",          cohort2 = "mgrborig" ),
+    list(model = "Melanoma:Law:10.1038/ng.3373",                            cohort1 = "ukbb",          cohort2 = "mgrborig" ),
+    list(model = "ProstateCancer:Hoffmann:10.1158/2159-8290.CD-15-0315",    cohort1 = "ukbb",          cohort2 = "mgrborig" )
+)
+target_tests = ldply(target_tests, unlist)
+
+boot_scores_tests.targeted = merge(target_tests, boot_scores_tests, all = FALSE)
+
+stopifnot(nrow(boot_scores_tests.targeted) == nrow(target_tests))
+
+boot_scores_tests.targeted$p.value.holm = p.adjust(boot_scores_tests.targeted$p.value, "holm")
+boot_scores_tests.targeted$p.value.bh = p.adjust(boot_scores_tests.targeted$p.value, "BH")
+boot_scores_tests.targeted$p.value.by = p.adjust(boot_scores_tests.targeted$p.value, "BY")
+boot_scores_tests.targeted
+boot_scores_tests.targeted[boot_scores_tests.targeted$p.value.bh < 0.05,]
+```
+
+### Investigate basis of significant PRS differences
+
+```{r, dev='svg', warnings=FALSE}
+temp = boot_scores_tests.targeted[boot_scores_tests.targeted$p.value.bh < 0.05,]
+for (i in 1:nrow(temp))
+{
+    dafplot(
+        afs1 = afs.nomissing[afs.nomissing$cohort == temp$cohort1[i],], 
+        afs2 = afs.nomissing[afs.nomissing$cohort == temp$cohort2[i],], 
+        model = models[models$id == temp$model[i],],
+        main = temp$model[i],
+        xlab = "",
+        # xlab = expression(paste("PRS ", beta)),
+        ylab = sprintf("MAF %s - %s", temp$cohort1[i], temp$cohort2[i]),
+        sub = sprintf("delta_median=%.3e  (%.3e-%.3e)\np.raw=%.4f  p.holm=%.4f  p.bh=%.4f", temp$delta.median[i], temp$delta.lcl[i], temp$delta.ucl[i], temp$p.value[i], temp$p.value.holm[i], temp$p.value.bh[i]))
+}
+```
+
+
+```{r, dev='svg'}
+library(reshape2)
+boot_scores.summary = adply(boot_scores, c(1,2), function(x) data.frame(median = median(x), lcl = quantile(x, 0.025), ucl = quantile(x, 0.975)))
+boot_scores.summary = merge(boot_scores.summary, melt(scores, value.name = "score"))
+temp.mgrb_norm = boot_scores.summary[boot_scores.summary$cohort == "mgrborig", c("model", "median", "lcl", "ucl")]
+temp.mgrb_norm$width = temp.mgrb_norm$ucl - temp.mgrb_norm$lcl
+# Scale so that MGRB's [lcl, ucl] --> [-0.5, 0.5]
+temp.mgrb_norm$a1 = 1/temp.mgrb_norm$width
+temp.mgrb_norm$a0 = -0.5 - temp.mgrb_norm$lcl*temp.mgrb_norm$a1
+temp.mgrb_norm = temp.mgrb_norm[,c("model", "a0", "a1")]
+boot_scores.summary = merge(boot_scores.summary, temp.mgrb_norm)
+boot_scores.summary$score.norm = boot_scores.summary$score*boot_scores.summary$a1 + boot_scores.summary$a0
+boot_scores.summary$lcl.norm = boot_scores.summary$lcl*boot_scores.summary$a1 + boot_scores.summary$a0
+boot_scores.summary$ucl.norm = boot_scores.summary$ucl*boot_scores.summary$a1 + boot_scores.summary$a0
+ggplot(boot_scores.summary[boot_scores.summary$cohort %in% c("ukbb", "ukbb_75_inf", "ukbb_70_75", "ukbb_65_70", "ukbb_60_65", "ukbb_55_60", "ukbb_0_55", "gnomad", "mgrborig"),], aes(x = cohort, y = score, ymin = lcl, ymax = ucl)) + geom_point() + geom_errorbar(width = 0.5) + theme_bw() + facet_wrap(~ model, scales = "free") + coord_flip()
+ggplot(boot_scores.summary[boot_scores.summary$cohort %in% c("ukbb", "ukbb_75_inf", "ukbb_0_55", "gnomad"),], aes(x = paste(model, cohort), y = score.norm, ymin = lcl.norm, ymax = ucl.norm, col = cohort)) + geom_point() + geom_rect(aes(ymin = -0.5, ymax = 0.5, xmin = -Inf, xmax = Inf), data = boot_scores.summary[boot_scores.summary$cohort %in% c("ukbb", "ukbb_75_inf", "ukbb_0_55", "gnomad"),][1,], fill = rgb(0, 0, 0, 0.1)) + geom_point() + geom_errorbar(width = 0.5) + theme_bw() + coord_flip()
+ggplot(boot_scores.summary[boot_scores.summary$cohort %in% c("ukbb", "gnomad", "mgrborig"),], aes(x = cohort, y = score, ymin = lcl, ymax = ucl)) + geom_point() + geom_errorbar(width = 0.5) + theme_bw() + facet_wrap(~ model, scales = "free") + coord_flip()
+ggplot(boot_scores.summary[boot_scores.summary$cohort %in% c("ukbb", "gnomad"),], aes(x = paste(model, cohort), y = score.norm, ymin = lcl.norm, ymax = ucl.norm, col = cohort)) + geom_point() + geom_rect(aes(ymin = -0.5, ymax = 0.5, xmin = -Inf, xmax = Inf), data = boot_scores.summary[boot_scores.summary$cohort %in% c("ukbb", "gnomad"),][1,], fill = rgb(0, 0, 0, 0.1)) + geom_point() + geom_errorbar(width = 0.5) + theme_bw() + coord_flip()
+```
+
+
+```{r}
+sessionInfo()
+```

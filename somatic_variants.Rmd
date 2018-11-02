@@ -1,0 +1,507 @@
+---
+title: Somatic Variant Burden Analysis
+output: html_document
+---
+
+# Data loading and processing
+```{r}
+library(ggplot2)
+
+metadata = read.csv("data/MGRB_paper_sample_metadata_20181022.csv", stringsAsFactors = FALSE)
+
+metadata$cohort[metadata$cohort == "SweGen_NSPHS"] = "SweGen"
+metadata$cohort[metadata$cohort == "SweGen_STR"] = "SweGen"
+
+metadata = metadata[
+    (metadata$cohort %in% c("ASPREE", "45andUp") & 
+        metadata$Phase2.SampleQCTier %in% c(1, 2) & 
+        metadata$successfullySequenced == 1 &
+        metadata$Phase2.RelatednessDropped == 0) |
+    (metadata$cohort %in% c("Cairns")) & 
+    !apply(is.na(metadata[,c("isFemale", "AgeAtCollectionYears")]), 1, any),]
+
+metadata$Frailty_GaitSpeedMs = 3/metadata$Frailty_GaitSpeed
+
+metadata$sex = factor(c("male", "female")[metadata$isFemale + 1])
+```
+
+
+# Exploratory analysis
+
+## Sex check
+```{r, dev="png"}
+ggplot(metadata, aes(x = xCNLowDepth, y = yCNLowDepth, col = sex, pch = cohort)) + geom_point()
+ggplot(metadata, aes(x = xCNLowDepth, y = yCNLowDepth, col = sex)) + geom_point() + facet_wrap(~ cohort)
+```
+One probable XXX.  There are a number of possible XYs present also, but they have been removed by the successfullySequenced == 1 and !is.na(metadata$isFemale) filters.  Some ASRB have lower X CN than the other cohorts, and ASRB in general has higher Y CN than the others; probable technical bias.  This won't affect the subsequent frailty comparisons as these are internal to ASPREE only.
+
+## Somatic metrics and frailty with age
+```{r, dev="png"}
+ggplot(metadata, aes(x = AgeAtCollectionYears, y = TelSeqFinalRecalibrated, col = cohort, lty = sex)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", se = FALSE) + theme_bw()
+ggplot(metadata, aes(x = AgeAtCollectionYears, y = SomaSNV_S3_LD, col = cohort, lty = sex)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", se = FALSE) + theme_bw()
+ggplot(metadata, aes(x = AgeAtCollectionYears, y = mtCNLowDepth, col = cohort, lty = sex)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", se = FALSE) + theme_bw()
+ggplot(metadata, aes(x = AgeAtCollectionYears, y = xCNLowDepth, col = cohort, lty = sex)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", se = FALSE) + theme_bw()
+ggplot(metadata, aes(x = AgeAtCollectionYears, y = yCNLowDepth, col = cohort, lty = sex)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", se = FALSE) + theme_bw()
+ggplot(metadata, aes(x = AgeAtCollectionYears, y = mity_LowDepth_NumVars, col = cohort, lty = sex)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", se = FALSE) + theme_bw()
+ggplot(metadata, aes(x = AgeAtCollectionYears, y = SomaCNV_ClonalFraction, col = cohort, lty = sex)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", se = FALSE) + theme_bw()
+ggplot(metadata, aes(x = AgeAtCollectionYears, y = CH_any_10pct, col = cohort, lty = sex)) + geom_point(alpha = 0.1) + geom_smooth(method = "gam", formula = y ~ x, method.args = list(family = "binomial")) + theme_bw()
+ggplot(metadata[metadata$CH_any_10pct == 1,], aes(x = AgeAtCollectionYears, y = SomaCNV_ClonalFraction, col = cohort, lty = sex)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", se = FALSE) + theme_bw()
+ggplot(metadata, aes(x = AgeAtCollectionYears, y = Frailty_GripStrength, col = cohort, lty = sex)) + geom_point(alpha = 0.1, pch = 16) + geom_smooth(method = "loess", level = 0.99) + theme_bw() + scale_x_continuous(breaks = c(20, 40, 60, 80), minor_breaks = c(30, 50, 70, 90))
+ggplot(metadata, aes(x = AgeAtCollectionYears, y = Frailty_GaitSpeedMs, col = cohort, lty = sex)) + geom_point(alpha = 0.1, pch = 16) + geom_smooth(method = "loess", level = 0.99) + theme_bw() + scale_x_continuous(breaks = c(20, 40, 60, 80), minor_breaks = c(30, 50, 70, 90))
+```
+
+## Correlations between measures
+```{r}
+library(corrplot)
+corrplot(cor(metadata[metadata$sex == "male", c("TelSeqFinalRecalibrated", "SomaSNV_S3_LD", "mtCNLowDepth", "yCNLowDepth", "mity_LowDepth_NumVars", "Frailty_GripStrength", "Frailty_GaitSpeedMs")], method = "kendall", use = "pairwise.complete.obs"), method = "square", main = "Males")
+corrplot(cor(metadata[metadata$sex == "female", c("TelSeqFinalRecalibrated", "SomaSNV_S3_LD", "mtCNLowDepth", "mity_LowDepth_NumVars", "Frailty_GripStrength", "Frailty_GaitSpeedMs")], method = "kendall", use = "pairwise.complete.obs"), method = "square", main = "Females")
+```
+Some correlation, but no strong colinearity.
+
+
+# Flexible model fits for plots
+
+Use some simple GAM fits to aid in plotting, factoring out the cohort intercepts.  We add a negligible amount of noise (+/- 6 months) to the age variable to prevent false positives with gam.check.
+
+```{r, dev="png"}
+library(mgcv)
+
+set.seed(314159)
+metadata$AgeAtCollectionYears.jittered = metadata$AgeAtCollectionYears - 0.5 + runif(nrow(metadata))
+
+plotfit.telseq = gam(TelSeqFinalRecalibrated ~ s(AgeAtCollectionYears.jittered, by = sex) + cohort, data = metadata)
+gam.check(plotfit.telseq)
+
+plotfit.soma_snv = gam(log(SomaSNV_S3_LD + 0.2) ~ s(AgeAtCollectionYears.jittered, by = sex) + cohort, data = metadata)
+gam.check(plotfit.soma_snv)
+
+plotfit.mtcn = gam(log(mtCNLowDepth) ~ s(AgeAtCollectionYears.jittered, by = sex) + cohort, data = metadata)
+gam.check(plotfit.mtcn)
+
+plotfit.ycn = gam(yCNLowDepth ~ s(AgeAtCollectionYears.jittered) + cohort, data = metadata[metadata$sex == "male",])
+gam.check(plotfit.ycn)
+# Odd residual distribution -- not linked to cohort
+
+plotfit.mitynvar = gam(log(mity_LowDepth_NumVars+1) ~ s(AgeAtCollectionYears.jittered, by = sex) + cohort, data = metadata)
+gam.check(plotfit.mitynvar)
+```
+
+
+Now construct the cohort intercept-corrected data for plotting, using the ASPREE intercepts as a reference:
+```{r}
+temp = metadata
+temp$cohort = "ASPREE"
+
+metadata$plotfit.telseq = NA
+metadata$plotfit.soma_snv = NA
+metadata$plotfit.mtcn = NA
+metadata$plotfit.ycn = NA
+metadata$plotfit.mitynvar = NA
+
+metadata$plotfit.telseq[!is.na(metadata$TelSeqFinalRecalibrated)] = predict(plotfit.telseq, newdata = temp[!is.na(metadata$TelSeqFinalRecalibrated),]) + residuals(plotfit.telseq)
+metadata$plotfit.soma_snv[!is.na(metadata$SomaSNV_S3_LD)] = exp(predict(plotfit.soma_snv, newdata = temp[!is.na(metadata$SomaSNV_S3_LD),]) + residuals(plotfit.soma_snv) - 0.2)
+metadata$plotfit.mtcn[!is.na(metadata$mtCNLowDepth)] = exp(predict(plotfit.mtcn, newdata = temp[!is.na(metadata$mtCNLowDepth),]) + residuals(plotfit.mtcn))
+metadata$plotfit.ycn[!is.na(metadata$yCNLowDepth) & metadata$sex == "male"] = predict(plotfit.ycn, newdata = temp[!is.na(metadata$yCNLowDepth) & metadata$sex == "male",]) + residuals(plotfit.ycn)
+metadata$plotfit.mitynvar[!is.na(metadata$mity_LowDepth_NumVars)] = exp(predict(plotfit.mitynvar, newdata = temp[!is.na(metadata$mity_LowDepth_NumVars),]) + residuals(plotfit.mitynvar) - 1)
+```
+
+Final cohort intercept-corrected plots.  Note clipping in some cases to focus on functional form; only a minor fraction of points are lost.
+```{r, dev="svg"}
+ggplot(metadata, aes(x = AgeAtCollectionYears.jittered, y = plotfit.telseq, col = cohort)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", level = 0.99, span = 1) + theme_bw() + coord_cartesian(ylim = c(1, 5)) + scale_x_continuous(breaks = c(20, 40, 60, 80), minor_breaks = c(30, 50, 70, 90))
+ggplot(metadata, aes(x = AgeAtCollectionYears.jittered, y = plotfit.soma_snv, col = cohort)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", level = 0.99, span = 1) + theme_bw() + scale_y_continuous(trans = 'log10') + coord_cartesian(ylim = c(0.1, 30)) + scale_x_continuous(breaks = c(20, 40, 60, 80), minor_breaks = c(30, 50, 70, 90))
+ggplot(metadata, aes(x = AgeAtCollectionYears.jittered, y = plotfit.mtcn, col = cohort)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", level = 0.99, span = 1) + theme_bw() + coord_cartesian(ylim = c(0, 400)) + scale_x_continuous(breaks = c(20, 40, 60, 80), minor_breaks = c(30, 50, 70, 90))
+ggplot(metadata[metadata$sex == "male",], aes(x = AgeAtCollectionYears.jittered, y = plotfit.ycn, col = cohort)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", level = 0.99, span = 1) + theme_bw() + coord_cartesian(ylim = c(0, 1)) + scale_x_continuous(breaks = c(20, 40, 60, 80), minor_breaks = c(30, 50, 70, 90))
+ggplot(metadata, aes(x = AgeAtCollectionYears.jittered, y = plotfit.mitynvar, col = cohort)) + geom_point(alpha = 0.1) + geom_smooth(method = "loess", level = 0.99, span = 1) + theme_bw() + coord_cartesian(ylim = c(0, 10)) + scale_x_continuous(breaks = c(20, 40, 60, 80), minor_breaks = c(30, 50, 70, 90))
+ggplot(metadata, aes(x = AgeAtCollectionYears.jittered, y = Frailty_GripStrength, col = cohort, lty = sex)) + geom_point(alpha = 0.1, pch = 16) + geom_smooth(method = "loess", level = 0.99, span = 1) + theme_bw() + scale_x_continuous(breaks = c(20, 40, 60, 80), minor_breaks = c(30, 50, 70, 90))
+ggplot(metadata, aes(x = AgeAtCollectionYears.jittered, y = Frailty_GaitSpeedMs, col = cohort, lty = sex)) + geom_point(alpha = 0.1, pch = 16) + geom_smooth(method = "loess", level = 0.99, span = 1) + theme_bw() + scale_x_continuous(breaks = c(20, 40, 60, 80), minor_breaks = c(30, 50, 70, 90))
+```
+
+
+# Trend calculations
+
+```{r}
+
+library(plyr)
+ddply(metadata, .(cohort), function(d) {d$AgeAtCollectionDecades = d$AgeAtCollectionYears/10; fit = lm(TelSeqFinalRecalibrated ~ AgeAtCollectionDecades, d); c(coef(fit)[2], confint(fit, 2)) })
+ddply(metadata, .(cohort), function(d) {d$AgeAtCollectionDecades = d$AgeAtCollectionYears/10; d$SomaSNV_S3_LD.log10 = log10(d$SomaSNV_S3_LD + 0.2); fit = lm(SomaSNV_S3_LD.log10 ~ AgeAtCollectionDecades, d); c(coef(fit)[2], confint(fit, 2)) })
+ddply(metadata, .(cohort), function(d) {d$AgeAtCollectionDecades = d$AgeAtCollectionYears/10; d$mtCNLowDepth.log10 = log10(d$mtCNLowDepth); fit = lm(mtCNLowDepth.log10 ~ AgeAtCollectionDecades, d); c(coef(fit)[2], confint(fit, 2)) })
+ddply(metadata[metadata$isFemale == 0,], .(cohort), function(d) {d$AgeAtCollectionDecades = d$AgeAtCollectionYears/10; fit = lm(yCNLowDepth ~ AgeAtCollectionDecades, d); c(coef(fit)[2], confint(fit, 2)) })
+ddply(metadata, .(cohort), function(d) {d$AgeAtCollectionDecades = d$AgeAtCollectionYears/10; fit = lm(mity_LowDepth_NumVars ~ AgeAtCollectionDecades, d); c(coef(fit)[2], confint(fit, 2)) })
+
+p.adjust(c(
+    anova(
+        lm(TelSeqFinalRecalibrated ~ AgeAtCollectionYears * I(cohort == "Cairns"), data = metadata), 
+        lm(TelSeqFinalRecalibrated ~ AgeAtCollectionYears, data = metadata))[2,"Pr(>F)"],
+    anova(
+        lm(log10(SomaSNV_S3_LD + 0.2) ~ AgeAtCollectionYears * I(cohort == "Cairns"), data = metadata), 
+        lm(log10(SomaSNV_S3_LD + 0.2) ~ AgeAtCollectionYears, data = metadata))[2,"Pr(>F)"],
+    anova(
+        lm(log10(mtCNLowDepth) ~ AgeAtCollectionYears * I(cohort == "Cairns"), data = metadata), 
+        lm(log10(mtCNLowDepth) ~ AgeAtCollectionYears, data = metadata))[2,"Pr(>F)"],
+    anova(
+        lm(yCNLowDepth ~ AgeAtCollectionYears * I(cohort == "Cairns"), data = metadata[metadata$isFemale == 0,]), 
+        lm(yCNLowDepth ~ AgeAtCollectionYears, data = metadata[metadata$isFemale == 0,]))[2,"Pr(>F)"],
+    anova(
+        lm(mity_LowDepth_NumVars ~ AgeAtCollectionYears * I(cohort == "Cairns"), data = metadata), 
+        lm(mity_LowDepth_NumVars ~ AgeAtCollectionYears, data = metadata))[2,"Pr(>F)"]), method = "holm")
+
+p.adjust(c(
+    anova(
+        lm(TelSeqFinalRecalibrated ~ AgeAtCollectionYears * I(cohort == "ASPREE"), data = metadata[metadata$cohort %in% c("ASPREE", "45andUp"),]), 
+        lm(TelSeqFinalRecalibrated ~ AgeAtCollectionYears + I(cohort == "ASPREE"), data = metadata[metadata$cohort %in% c("ASPREE", "45andUp"),]))[2,"Pr(>F)"],
+    anova(
+        lm(log10(SomaSNV_S3_LD + 0.2) ~ AgeAtCollectionYears * I(cohort == "ASPREE"), data = metadata[metadata$cohort %in% c("ASPREE", "45andUp"),]), 
+        lm(log10(SomaSNV_S3_LD + 0.2) ~ AgeAtCollectionYears + I(cohort == "ASPREE"), data = metadata[metadata$cohort %in% c("ASPREE", "45andUp"),]))[2,"Pr(>F)"],
+    anova(
+        lm(log10(mtCNLowDepth) ~ AgeAtCollectionYears * I(cohort == "ASPREE"), data = metadata[metadata$cohort %in% c("ASPREE", "45andUp"),]), 
+        lm(log10(mtCNLowDepth) ~ AgeAtCollectionYears + I(cohort == "ASPREE"), data = metadata[metadata$cohort %in% c("ASPREE", "45andUp"),]))[2,"Pr(>F)"],
+    anova(
+        lm(yCNLowDepth ~ AgeAtCollectionYears * I(cohort == "ASPREE"), data = metadata[metadata$cohort %in% c("ASPREE", "45andUp") & metadata$isFemale == 0,]), 
+        lm(yCNLowDepth ~ AgeAtCollectionYears + I(cohort == "ASPREE"), data = metadata[metadata$cohort %in% c("ASPREE", "45andUp") & metadata$isFemale == 0,]))[2,"Pr(>F)"],
+    anova(
+        lm(mity_LowDepth_NumVars ~ AgeAtCollectionYears * I(cohort == "ASPREE"), data = metadata[metadata$cohort %in% c("ASPREE", "45andUp"),]), 
+        lm(mity_LowDepth_NumVars ~ AgeAtCollectionYears + I(cohort == "ASPREE"), data = metadata[metadata$cohort %in% c("ASPREE", "45andUp"),]))[2,"Pr(>F)"]), method = "holm")
+
+```
+
+
+# Model fitting
+
+Directly test the hypothesis: somatic measures are significantly associated with fraility measures after conditioning for conventional variables.  Use flexible GAM models; this necessitates permutation testing.  Because of the number of tests (5 somatic variables in males, 4 in females, 2 frailty measure = 18 tests), use a training/validation split to alleviate MT concerns.
+
+## Preparations
+```{r}
+library(plyr)
+library(doParallel)
+registerDoParallel(28)
+
+test.pval_threshold = 0.2
+
+gam_permutation_test = function(formula, data, perm_vars, seed = 314159, B = 10000, ...)
+{
+    fit_deviance = deviance(gam(formula = formula, data = data, ...))
+    perm_deviance = laply(1:B, function(i)
+    {
+        perm_data = data
+        set.seed(seed + i)
+        permutation = sample.int(nrow(perm_data), replace = FALSE)
+        for (perm_var in perm_vars)
+            perm_data[,perm_var] = perm_data[permutation,perm_var]
+        deviance(gam(formula = formula, data = perm_data, ...))
+    }, .parallel = TRUE)
+
+    nextr = sum(perm_deviance <= fit_deviance)
+
+    list(deviance = fit_deviance, deviance_perm = perm_deviance, p.value = (nextr+0.5)/(B+1))
+}
+
+metadata.aspree.complete = metadata[metadata$cohort == "ASPREE", c("sampleID", "Frailty_GripStrength", "Frailty_GaitSpeedMs", 
+    "AgeAtCollectionYears", "TelSeqFinalRecalibrated", "SomaSNV_S3_LD", "mtCNLowDepth", "yCNLowDepth", "mity_LowDepth_NumVars", 
+    "sex", "HtMtrs", "WtKgs", "AbdoCircCms", "GlcmmolL")]
+metadata.aspree.complete = metadata.aspree.complete[!apply(is.na(metadata.aspree.complete), 1, any),]
+metadata.aspree.complete$BMI = metadata.aspree.complete$WtKgs / metadata.aspree.complete$HtMtrs^2
+set.seed(314159)
+metadata.aspree.complete$split = sample(rep(c("training", "validation"), c(round(0.25*nrow(metadata.aspree.complete)), nrow(metadata.aspree.complete) - round(0.25*nrow(metadata.aspree.complete)))))
+```
+
+
+## Transformations
+
+```{r}
+set.seed(314159)
+metadata.aspree.complete$AgeAtCollectionYears.jittered = metadata.aspree.complete$AgeAtCollectionYears + runif(nrow(metadata.aspree.complete)) - 0.5
+metadata.aspree.complete$Frailty_GripStrength.trans = metadata.aspree.complete$Frailty_GripStrength^0.7
+metadata.aspree.complete$SomaSNV_S3_LD.trans = log(metadata.aspree.complete$SomaSNV_S3_LD + 1e-1)
+metadata.aspree.complete$mtCNLowDepth.trans = sqrt(metadata.aspree.complete$mtCNLowDepth)
+```
+
+## Tests
+
+### Training: Grip strength
+```{r}
+test.grip.telseq.male = gam_permutation_test(formula = Frailty_GripStrength.trans ~ s(AgeAtCollectionYears) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(TelSeqFinalRecalibrated), data = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & metadata.aspree.complete$split == "training",], perm_vars = c("TelSeqFinalRecalibrated"))
+test.grip.somas3.male = gam_permutation_test(formula = Frailty_GripStrength.trans ~ s(AgeAtCollectionYears) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(SomaSNV_S3_LD.trans), data = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & metadata.aspree.complete$split == "training",], perm_vars = c("SomaSNV_S3_LD.trans"))
+test.grip.ycn.male = gam_permutation_test(formula = Frailty_GripStrength.trans ~ s(AgeAtCollectionYears) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(yCNLowDepth), data = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & metadata.aspree.complete$split == "training",], perm_vars = c("yCNLowDepth"))
+test.grip.mtcn.male = gam_permutation_test(formula = Frailty_GripStrength.trans ~ s(AgeAtCollectionYears) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(mtCNLowDepth.trans), data = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & metadata.aspree.complete$split == "training",], perm_vars = c("mtCNLowDepth.trans"))
+test.grip.mitynvars.male = gam_permutation_test(formula = Frailty_GripStrength.trans ~ s(AgeAtCollectionYears) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(mity_LowDepth_NumVars), data = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & metadata.aspree.complete$split == "training",], perm_vars = c("mity_LowDepth_NumVars"))
+
+test.grip.telseq.female = gam_permutation_test(formula = Frailty_GripStrength.trans ~ s(AgeAtCollectionYears) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(TelSeqFinalRecalibrated), data = metadata.aspree.complete[metadata.aspree.complete$sex == "female" & metadata.aspree.complete$split == "training",], perm_vars = c("TelSeqFinalRecalibrated"))
+test.grip.somas3.female = gam_permutation_test(formula = Frailty_GripStrength.trans ~ s(AgeAtCollectionYears) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(SomaSNV_S3_LD.trans), data = metadata.aspree.complete[metadata.aspree.complete$sex == "female" & metadata.aspree.complete$split == "training",], perm_vars = c("SomaSNV_S3_LD.trans"))
+test.grip.mtcn.female = gam_permutation_test(formula = Frailty_GripStrength.trans ~ s(AgeAtCollectionYears) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(mtCNLowDepth.trans), data = metadata.aspree.complete[metadata.aspree.complete$sex == "female" & metadata.aspree.complete$split == "training",], perm_vars = c("mtCNLowDepth.trans"))
+test.grip.mitynvars.female = gam_permutation_test(formula = Frailty_GripStrength.trans ~ s(AgeAtCollectionYears) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(mity_LowDepth_NumVars), data = metadata.aspree.complete[metadata.aspree.complete$sex == "female" & metadata.aspree.complete$split == "training",], perm_vars = c("mity_LowDepth_NumVars"))
+```
+
+### Training: Gait speed
+```{r}
+test.gait.telseq.male = gam_permutation_test(formula = Frailty_GaitSpeedMs ~ s(AgeAtCollectionYears) + s(HtMtrs) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(TelSeqFinalRecalibrated), data = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & metadata.aspree.complete$split == "training",], perm_vars = c("TelSeqFinalRecalibrated"))
+test.gait.somas3.male = gam_permutation_test(formula = Frailty_GaitSpeedMs ~ s(AgeAtCollectionYears) + s(HtMtrs) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(SomaSNV_S3_LD.trans), data = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & metadata.aspree.complete$split == "training",], perm_vars = c("SomaSNV_S3_LD.trans"))
+test.gait.ycn.male = gam_permutation_test(formula = Frailty_GaitSpeedMs ~ s(AgeAtCollectionYears) + s(HtMtrs) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(yCNLowDepth), data = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & metadata.aspree.complete$split == "training",], perm_vars = c("yCNLowDepth"))
+test.gait.mtcn.male = gam_permutation_test(formula = Frailty_GaitSpeedMs ~ s(AgeAtCollectionYears) + s(HtMtrs) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(mtCNLowDepth.trans), data = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & metadata.aspree.complete$split == "training",], perm_vars = c("mtCNLowDepth.trans"))
+test.gait.mitynvars.male = gam_permutation_test(formula = Frailty_GaitSpeedMs ~ s(AgeAtCollectionYears) + s(HtMtrs) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(mity_LowDepth_NumVars), data = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & metadata.aspree.complete$split == "training",], perm_vars = c("mity_LowDepth_NumVars"))
+
+test.gait.telseq.female = gam_permutation_test(formula = Frailty_GaitSpeedMs ~ s(AgeAtCollectionYears) + s(HtMtrs) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(TelSeqFinalRecalibrated), data = metadata.aspree.complete[metadata.aspree.complete$sex == "female" & metadata.aspree.complete$split == "training",], perm_vars = c("TelSeqFinalRecalibrated"))
+test.gait.somas3.female = gam_permutation_test(formula = Frailty_GaitSpeedMs ~ s(AgeAtCollectionYears) + s(HtMtrs) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(SomaSNV_S3_LD.trans), data = metadata.aspree.complete[metadata.aspree.complete$sex == "female" & metadata.aspree.complete$split == "training",], perm_vars = c("SomaSNV_S3_LD.trans"))
+test.gait.mtcn.female = gam_permutation_test(formula = Frailty_GaitSpeedMs ~ s(AgeAtCollectionYears) + s(HtMtrs) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(mtCNLowDepth.trans), data = metadata.aspree.complete[metadata.aspree.complete$sex == "female" & metadata.aspree.complete$split == "training",], perm_vars = c("mtCNLowDepth.trans"))
+test.gait.mitynvars.female = gam_permutation_test(formula = Frailty_GaitSpeedMs ~ s(AgeAtCollectionYears) + s(HtMtrs) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(mity_LowDepth_NumVars), data = metadata.aspree.complete[metadata.aspree.complete$sex == "female" & metadata.aspree.complete$split == "training",], perm_vars = c("mity_LowDepth_NumVars"))
+```
+
+### Training: Summary
+```{r}
+test.pvals = c(
+    "grip.telseq.male" = test.grip.telseq.male$p.value,
+    "grip.somas3.male" = test.grip.somas3.male$p.value,
+    "grip.ycn.male" = test.grip.ycn.male$p.value,
+    "grip.mtcn.male" = test.grip.mtcn.male$p.value,
+    "grip.mityn.male" = test.grip.mitynvars.male$p.value,
+
+    "grip.telseq.female" = test.grip.telseq.female$p.value,
+    "grip.somas3.female" = test.grip.somas3.female$p.value,
+    "grip.mtcn.female" = test.grip.mtcn.female$p.value,
+    "grip.mityn.female" = test.grip.mitynvars.female$p.value,
+
+    "gait.telseq.male" = test.gait.telseq.male$p.value,
+    "gait.somas3.male" = test.gait.somas3.male$p.value,
+    "gait.ycn.male" = test.gait.ycn.male$p.value,
+    "gait.mtcn.male" = test.gait.mtcn.male$p.value,
+    "gait.mityn.male" = test.gait.mitynvars.male$p.value,
+
+    "gait.telseq.female" = test.gait.telseq.female$p.value,
+    "gait.somas3.female" = test.gait.somas3.female$p.value,
+    "gait.mtcn.female" = test.gait.mtcn.female$p.value,
+    "gait.mityn.female" = test.gait.mitynvars.female$p.value
+)
+sort(test.pvals)
+
+which(test.pvals <= test.pval_threshold)
+```
+
+
+### Validation
+```{r}
+test.grip.mtcn.male.validation = gam_permutation_test(formula = Frailty_GripStrength.trans ~ s(AgeAtCollectionYears) + s(WtKgs) + s(BMI) + s(AbdoCircCms) + s(mtCNLowDepth.trans), data = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & metadata.aspree.complete$split == "validation",], perm_vars = c("mtCNLowDepth.trans"))
+
+test.grip.mtcn.male.validation$p.value
+```
+
+
+# Illustration: effect of mtDNA CN on grip strength in males
+
+Examine the influence of mtDNA CN on grip strength in men.  Express this as biological years vs calendar years for an 80 calendar-year-old man (the median age of men in ASPREE).
+
+## Parameters
+```{r}
+illustr.target_somatic_quant = unique(sort(c(0.499, 0.501, seq(0.01, 0.99, 0.01))))
+illustr.ci_levels = c(0.5, 0.8, 0.9, 0.95)
+illustr.R = 100000
+illustr.target_age = 80
+```
+
+## Local quantile calculation
+```{r}
+# Calculate the local quantile of each point in x.  The local quantile
+# of point i is defined as eCDF(x_i), where the eCDF is based on the
+# x-values of all points within deltaz of z_i, not including point i
+# itself: { x_j : z_i - deltaz <= z_j < z_i + deltaz, j != i }.
+local_quantile = function(x, z, deltaz, group = rep(1, length(x)))
+{
+    n = length(x)
+    as.data.frame(t(sapply(1:n, function(i) {
+        x_i = x[i]
+        z_i = z[i]
+        group_i = group[i]
+        neighbourhood_x = x[z >= z_i - deltaz & z < z_i + deltaz & 1:n != i & group == group_i]
+        neighbourhood_size = length(neighbourhood_x)
+        if (neighbourhood_size == 0)
+            lq = 0
+        else
+            lq = ecdf(neighbourhood_x)(x_i)
+        return(c(lq = lq, ls = neighbourhood_size))
+    })))
+}
+
+for (temp.var in c("Frailty_GripStrength", "Frailty_GaitSpeedMs", "SomaSNV_S3_LD", "mtCNLowDepth", "mity_LowDepth_NumVars", "yCNLowDepth", "TelSeqFinalRecalibrated"))
+{
+    metadata.aspree.complete = cbind(metadata.aspree.complete, local_quantile(metadata.aspree.complete[,temp.var], metadata.aspree.complete$AgeAtCollectionYears, 1.1, metadata.aspree.complete$sex))
+    metadata.aspree.complete[metadata.aspree.complete[,ncol(metadata.aspree.complete)] < 20, ncol(metadata.aspree.complete)-1] = NA
+    colnames(metadata.aspree.complete)[ncol(metadata.aspree.complete)-1] = sprintf("%s.quant.lq", temp.var)
+    colnames(metadata.aspree.complete)[ncol(metadata.aspree.complete)] = sprintf("%s.quant.ls", temp.var)
+}
+```
+
+For the target age of 80, the local quantile is based on 293 data points, being ASPREE men with age in [79, 81].
+
+```{r, dev="svg"}
+illustr.metadata.aspree.complete.male = metadata.aspree.complete[metadata.aspree.complete$sex == "male" & !is.na(metadata.aspree.complete$mtCNLowDepth.quant.lq),]
+range(illustr.metadata.aspree.complete.male$AgeAtCollectionYears)
+median(illustr.metadata.aspree.complete.male$AgeAtCollectionYears)
+sum(illustr.metadata.aspree.complete.male$AgeAtCollectionYears == median(illustr.metadata.aspree.complete.male$AgeAtCollectionYears))
+
+ggplot(illustr.metadata.aspree.complete.male, aes(x = AgeAtCollectionYears, y = Frailty_GaitSpeedMs)) + geom_point() + geom_smooth(method = "gam")
+ggplot(illustr.metadata.aspree.complete.male, aes(x = AgeAtCollectionYears, y = Frailty_GripStrength.trans)) + geom_point() + geom_smooth(method = "gam")
+ggplot(illustr.metadata.aspree.complete.male, aes(x = AgeAtCollectionYears, y = Frailty_GaitSpeedMs)) + geom_point() + geom_smooth(method = "gam") + coord_cartesian(ylim = c(.8, 1.2))
+ggplot(illustr.metadata.aspree.complete.male, aes(x = AgeAtCollectionYears, y = Frailty_GripStrength.trans)) + geom_point() + geom_smooth(method = "gam") + coord_cartesian(ylim = c(8, 14))
+```
+
+<!-- 
+```{r}
+fit.marginal = gam(Frailty_GripStrength.trans ~ s(AgeAtCollectionYears.jittered) + s(mtCNLowDepth.quant.lq), data = illustr.metadata.aspree.complete.male)
+gam.check(fit.marginal)
+fit.complete = gam(Frailty_GripStrength.trans ~ s(AgeAtCollectionYears.jittered, mtCNLowDepth.quant.lq), data = illustr.metadata.aspree.complete.male)
+gam.check(fit.complete)
+anova(fit.complete, fit.marginal, test = "LRT")
+temp.plotx = expand.grid(AgeAtCollectionYears.jittered = seq(75, 85, 0.1), mtCNLowDepth.quant.lq = seq(0.05, 0.95, 0.1))
+temp.plotx$y_marginal = predict(fit.marginal, temp.plotx)
+temp.plotx$y_complete = predict(fit.complete, temp.plotx)
+temp.plotx$y_delta = temp.plotx$y_complete - temp.plotx$y_marginal
+ggplot(temp.plotx, aes(x = AgeAtCollectionYears.jittered, y = y_marginal, col = ordered(mtCNLowDepth.quant.lq))) + geom_line()
+ggplot(temp.plotx, aes(x = AgeAtCollectionYears.jittered, y = y_complete, col = ordered(mtCNLowDepth.quant.lq))) + geom_line()
+ggplot(temp.plotx, aes(x = AgeAtCollectionYears.jittered, y = y_delta, col = ordered(mtCNLowDepth.quant.lq))) + geom_line()
+```
+-->
+
+It's reasonable to model somatic ~ age as linear, thereby considerably simplifying the inversion performed below.  I consider this fine for illustrative purposes, which is the goal here.  At worst, the slight double-dipping will falsely bias the bootstrap variance downwards by a small amount.
+
+## Bootstrapping
+
+```{r}
+library(boot)
+
+somatic_effect_bootstrap_statistic = function(data, indices, target_age, target_somatic_quant)
+{
+    data = data[indices,]
+
+    # 1. Fit frailty ~ age + somatic
+    fit = gam(frailty ~ age + s(somatic_quant), data = data)
+
+    # 2. Build a frailty ~ age curve at the median somatic value, then invert this
+    #    to generate an age ~ frailty | mediansom relationship.
+    frailty_given_age_at_mediansom = expand.grid(age = seq(min(data$age), max(data$age), 1), somatic_quant = 0.5)
+    frailty_given_age_at_mediansom$frailty_somatic.pred = predict(fit, newdata = frailty_given_age_at_mediansom, se.fit = FALSE)
+    frailty2age_at_mediansom = approxfun(x = frailty_given_age_at_mediansom$frailty_somatic.pred, y = frailty_given_age_at_mediansom$age)
+
+    # 3. Build a frailty ~ som curve at the target age, then invert using the 
+    #    age ~ frailty | mediansom relationship from 2 to yield age_given_mediansom ~ som
+    frailty_given_som_at_targetage = expand.grid(age = target_age, somatic_quant = target_somatic_quant)
+    frailty_given_som_at_targetage$frailty_somatic.pred = predict(fit, newdata = frailty_given_som_at_targetage, se.fit = FALSE)
+    frailty_given_som_at_targetage$age_somatic.pred = frailty2age_at_mediansom(frailty_given_som_at_targetage$frailty_somatic.pred)
+
+    # 4. Quantify the frailty age excess, which is Age_assuming_median_som_given_frailty_estimatedfrom_actualsom - Actual_age
+    frailty_given_som_at_targetage$age_excess = frailty_given_som_at_targetage$age_somatic.pred - frailty_given_som_at_targetage$age
+    frailty_given_som_at_targetage$age_excess
+
+    # Note that because the model has age linear and independent of somatic, the target_age
+    # has no effect on the results -- the frailty ~ som curve is the same shape (just translated on y)
+    # for any target age.
+}
+
+somatic_effect_bootstrap = function(age, frailty, somatic_quant, target_age, target_somatic_quant, seed = NA, ...)
+{
+    if (!is.na(seed))
+        set.seed(seed)
+
+    boot(
+        data = data.frame(age = age, frailty = frailty, somatic_quant = somatic_quant),
+        statistic = function(data, indices) somatic_effect_bootstrap_statistic(data, indices, target_age, target_somatic_quant), 
+        ...)
+}
+
+somatic_effect_bootsummary = function(boot_result, mtcn_quantile, ci_levels)
+{
+    bootsummary = expand.grid(mtcn_quantile = mtcn_quantile, ci_level = ci_levels)
+    bootsummary = ddply(bootsummary, colnames(bootsummary), function(d) {
+        ci = try(boot.ci(boot_result, conf = d$ci_level, index = which(mtcn_quantile == d$mtcn_quantile), type = "bca"))
+        d$boot.method = "BCa"
+        if (class(ci) == "try-error")
+        {
+            d$boot.lcl = NA
+            d$boot.ucl = NA
+        }
+        else
+        {
+            d$boot.lcl = ci$bca[4]
+            d$boot.ucl = ci$bca[5]
+        }
+        d}, .parallel = TRUE)
+    bootsummary$statistic = boot_result$t0[match(bootsummary$mtcn_quantile, mtcn_quantile)]
+    bootsummary
+}
+```
+
+
+## mtDNA effect on grip strength in males
+
+```{r, dev="svg"}
+illustr.grip_mtcn_bootstrap = somatic_effect_bootstrap(
+    age = illustr.metadata.aspree.complete.male$AgeAtCollectionYears,
+    frailty = illustr.metadata.aspree.complete.male$Frailty_GripStrength.trans,
+    somatic_quant = illustr.metadata.aspree.complete.male$mtCNLowDepth.quant.lq,
+    target_age = illustr.target_age,
+    target_somatic_quant = illustr.target_somatic_quant,
+    seed = 314159,
+    R = illustr.R)
+
+illustr.grip_mtcn_bootstrap.summary = somatic_effect_bootsummary(illustr.grip_mtcn_bootstrap, mtcn_quantile = illustr.target_somatic_quant, ci_levels = illustr.ci_levels)
+
+ggplot(illustr.grip_mtcn_bootstrap.summary, aes(x = mtcn_quantile, y = statistic, ymin = boot.lcl, ymax = boot.ucl, fill = ordered(ci_level, levels = rev(sort(illustr.ci_levels))))) + 
+    geom_ribbon(alpha = 0.8) +
+    geom_line(lwd = 1) + 
+    xlab("Mitochondrial depth quantile") + 
+    ylab("Grip strength anomaly (years)") + 
+    ggtitle("Effect on mitochondrial depth on grip strength in men") + 
+    theme_bw() +
+    scale_fill_brewer() + 
+    guides(fill = guide_legend(title = "CL")) +
+    geom_rug(data = illustr.metadata.aspree.complete.male, mapping = aes(x = mtCNLowDepth.quant.lq), sides = "b", alpha = 0.2, inherit.aes = FALSE)
+```
+
+```{r, dev="svg"}
+# An alterative take, as the bootstrap CIs arguably aren't entirely sensible -- we're
+# not proposing a formal test here after all, but rather just a visualisation.  In that
+# context a HPD interval, which effectively is just a neater way to overplot the bootstrap
+# runs, makes more sense.
+library(HDInterval)
+
+illustr.hpd_levels = c(0.5, 0.8, 0.9)
+
+illustr.grip_mtcn_bootstrap.summary_hdi = ldply(illustr.hpd_levels, function(credmass) {
+    hdis = apply(illustr.grip_mtcn_bootstrap$t, 2, hdi, credMass = credmass)
+    data.frame(
+        mtcn_quantile = illustr.target_somatic_quant,
+        credmass = credmass,
+        hdi.lcl = hdis[1,],
+        hdi.ucl = hdis[2,],
+        statistic = illustr.grip_mtcn_bootstrap$t0)
+})
+
+ggplot(illustr.grip_mtcn_bootstrap.summary_hdi, aes(x = mtcn_quantile, y = statistic, ymin = hdi.lcl, ymax = hdi.ucl, fill = ordered(credmass, levels = rev(sort(illustr.hpd_levels))))) + 
+    geom_ribbon(alpha = 0.8) +
+    geom_line(lwd = 1) + 
+    xlab("Mitochondrial depth quantile") + 
+    ylab("Grip strength anomaly (years)") + 
+    ggtitle("Effect on mitochondrial depth on grip strength in men") + 
+    theme_bw() +
+    scale_fill_brewer() + 
+    guides(fill = guide_legend(title = "Credible mass")) +
+    geom_rug(data = illustr.metadata.aspree.complete.male, mapping = aes(x = mtCNLowDepth.quant.lq), sides = "b", alpha = 0.2, inherit.aes = FALSE)
+```
+
+
+### Some extra diagnostic plots
+
+```{r}
+temp.fit = gam(Frailty_GripStrength.trans ~ s(AgeAtCollectionYears, mtCNLowDepth.quant.lq), data = illustr.metadata.aspree.complete.male)
+plot(temp.fit, scheme = 3, pch = NA, lwd = 2)
+
+ggplot(illustr.metadata.aspree.complete.male, aes(x = AgeAtCollectionYears, y = Frailty_GripStrength.trans, col = cut(mtCNLowDepth.quant.lq, 3), fill = cut(mtCNLowDepth.quant.lq, 3))) + geom_smooth(method = "gam") + guides(fill = guide_legend("Local mtCN quantile"), col = guide_legend("Local mtCN quantile"))
+
+ggplot(illustr.metadata.aspree.complete.male, aes(x = AgeAtCollectionYears, y = Frailty_GripStrength.trans, col = cut(AgeAtCollectionYears, seq(70, 90, 2.5)))) + geom_smooth(method = "gam", se = FALSE) + guides(col = guide_legend("Age"))
+ggplot(illustr.metadata.aspree.complete.male, aes(x = AgeAtCollectionYears, y = Frailty_GripStrength.trans)) + geom_smooth(method = "loess", span = 0.5)
+
+ggplot(illustr.metadata.aspree.complete.male, aes(x = AgeAtCollectionYears, y = Frailty_GripStrength.trans, col = cut(mtCNLowDepth.quant.lq, 3), fill = cut(mtCNLowDepth.quant.lq, 3))) + geom_smooth(method = "gam") + guides(fill = guide_legend("Local mtCN quantile"), col = guide_legend("Local mtCN quantile"))
+ggplot(illustr.metadata.aspree.complete.male, aes(x = mtCNLowDepth.quant.lq, y = Frailty_GripStrength.trans, col = cut(AgeAtCollectionYears, quantile(AgeAtCollectionYears, (0:3)/3), include.lowest = TRUE), fill = cut(AgeAtCollectionYears, quantile(AgeAtCollectionYears, (0:3)/3), include.lowest = TRUE))) + geom_smooth(method = "gam") + guides(fill = guide_legend("Age range"), col = guide_legend("Age range"))
+
+ggplot(illustr.metadata.aspree.complete.male, aes(x = mtCNLowDepth.quant.lq, y = Frailty_GripStrength.trans)) + geom_smooth(method = "loess") + facet_wrap(~ cut(AgeAtCollectionYears, seq(70, 90, 2.5)))
+
+ggplot(illustr.metadata.aspree.complete.male[abs(illustr.metadata.aspree.complete.male$AgeAtCollectionYears - 77.5) <= 2.5,], aes(x = mtCNLowDepth.quant.lq, y = Frailty_GripStrength.trans)) + geom_smooth(method = "gam")
+ggplot(illustr.metadata.aspree.complete.male[abs(illustr.metadata.aspree.complete.male$AgeAtCollectionYears - 77.5) <= 2.5,], aes(x = AgeAtCollectionYears, y = Frailty_GripStrength.trans)) + geom_smooth(method = "gam")
+```
