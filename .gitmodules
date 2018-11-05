@@ -1,0 +1,17 @@
+[submodule "software/vt"]
+	path = software/vt
+	url = https://github.com/atks/vt
+[submodule "software/hail"]
+	path = software/hail
+	url = https://github.com/hail-is/hail.git
+[submodule "software/hail-0.1-spark-2.2"]
+	path = software/hail-0.1-spark-2.2
+	url = https://github.com/hail-is/hail.git
+[submodule "software/loftee"]
+	path = software/loftee
+	url = https://github.com/konradjk/loftee
+	branch = master
+[submodule "GATK3_fastq2gvcf-hs37d5x-1.0_split-combine_genotype_vqsr_hail_paper-analysis/polygenic-scores/code/popstar"]
+	path = GATK3_fastq2gvcf-hs37d5x-1.0_split-combine_genotype_vqsr_hail_paper-analysis/polygenic-scores/code/popstar
+	url = https://github.com/mpinese/popstar
+	branch = master
