@@ -1,0 +1,12 @@
+#!/bin/bash
+REFERENCE="/g/data3/wq2/resources/hs37d5x/reference_genome/hs37d5x.fa"
+
+java -Xmx6G -jar bin/GenomeAnalysisTK.jar \
+  -T VariantEval \
+  -R "${REFERENCE}" \
+  -o ../MGRB.phase2qc.eval.grp \
+  -noST -ST Sample \
+  -noEV -EV CountVariants -EV IndelSummary -EV MultiallelicSummary -EV TiTvVariantEvaluator -EV ThetaVariantEvaluator \
+  --eval ../MGRB.phase2qc.vcf.gz \
+  -XL X -XL Y -XL MT
+

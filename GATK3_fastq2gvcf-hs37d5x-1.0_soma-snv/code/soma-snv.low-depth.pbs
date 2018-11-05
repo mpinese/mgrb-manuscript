@@ -1,0 +1,58 @@
+#!/bin/bash
+#PBS -P wq2
+#PBS -q normal
+#PBS -l ncpus=16
+#PBS -l mem=128G
+#PBS -l other=gdata3
+#PBS -l jobfs=10G
+#PBS -l wd
+#PBS -l walltime=6:00:00
+set -euo pipefail
+
+# Input environment variables:
+# INFILE
+# OUTFILE_STEM                    "${OUTDIR}/${sample_name}/pass2/shards/${sample_name}.soma-snv.pass2"
+# SHARDS
+# BLACKLIST
+# REFERENCE
+# CORES
+
+queuefile="${OUTFILE_STEM}.queued"
+lockfile="${OUTFILE_STEM}.lock"
+termfile="${OUTFILE_STEM}.term"
+donefile="${OUTFILE_STEM}.done"
+
+
+term_handler()
+{
+  rm -f "${lockfile}"
+  touch "${termfile}"
+  exit 1
+}
+trap 'term_handler' TERM
+
+
+touch "${lockfile}"
+rm -f "${queuefile}"
+
+
+function doshard
+{
+  region="${1}"
+  outfile_background="${2}"
+  outfile_variants="${3}"
+  if [ ! -e "${outfile_variants%.variants.tsv}.done" ]; then
+    ./bin/samtools mpileup -d 101 -a -C 50 -E -I -q 30 -Q 30 -s -r "${region}" -f "${REFERENCE}" "${INFILE}" | \
+      ./bin/pypy soma-snv.py --blacklist "${BLACKLIST}" --background "${outfile_background}" --snr 5.0 --vaf 0.2 --error 2.0e-3 --het 1.0e-4 --scv 5.0e-7 --maxdp 100 > "${outfile_variants}" &&
+    touch "${outfile_variants%.variants.tsv}.done"
+  fi
+}
+
+export -f doshard
+
+sort -k5,5rn "../../../../../resources/reference_genomes/hs37d5x/hs37d5x.shards" | \
+  grep -P '^[0-9]+\t' | \
+  ./bin/parallel -j "${CORES}" --tmpdir "${PBS_JOBFS}" --colsep '\t' doshard "{1}:{6}-{3}" "${OUTFILE_STEM}.shard{4}.chrom{1}.pos{6}-{3}.background.tsv" "${OUTFILE_STEM}.shard{4}.chrom{1}.pos{6}-{3}.variants.tsv"
+
+touch "${donefile}"
+rm -f "${lockfile}"

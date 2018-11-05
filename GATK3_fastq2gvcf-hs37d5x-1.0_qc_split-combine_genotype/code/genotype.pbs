@@ -1,0 +1,38 @@
+#!/bin/bash
+#PBS -P wq2
+#PBS -q normal
+#PBS -l walltime=04:00:00
+#PBS -l mem=16GB
+#PBS -l ncpus=1
+#PBS -l wd
+#PBS -l other=gdata3
+#PBS -N gtGVCF
+#PBS -l jobfs=8GB
+set -euo pipefail
+
+queue_file="${OUT_FILE}.queued"
+lock_file="${OUT_FILE}.lock"
+done_file="${OUT_FILE}.done"
+term_file="${OUT_FILE}.term"
+log_file="${OUT_FILE}.log"
+
+term_handler()
+{
+    rm -f "${lock_file}"
+    touch "${term_file}"
+    exit 1
+}
+trap 'term_handler' TERM
+
+touch "${lock_file}"
+rm -f "${queue_file}"
+
+rm -f "${OUT_FILE}"
+
+java -Xmx14G -Djava.io.tmpdir="${PBS_JOBFS}" -jar ./bin/GenomeAnalysisTK.jar -T GenotypeGVCFs -L "${SHARD}" -R "${REFERENCE}" -o "${OUT_FILE}" ${SOURCE_DESCRIPTOR} -newQual 2> >(tee "${log_file}" >&2)
+
+md5sum "${OUT_FILE}" > "${OUT_FILE}.md5"
+md5sum "${log_file}" > "${log_file}.md5"
+
+touch "${done_file}"
+rm -f "${lock_file}"

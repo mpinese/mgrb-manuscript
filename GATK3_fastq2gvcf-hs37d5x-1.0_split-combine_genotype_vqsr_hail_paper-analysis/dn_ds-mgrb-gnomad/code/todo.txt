@@ -1,0 +1,5 @@
+* Filter pop'n down to EUR high confidence
+* Tweak filters so that GnomAD and MGRB are NOT included (1000G EUR only?).  Or use MGRB + GnomAD combined freq as threshold... might make more sense.
+* SNVs only
+* All variants for matched VEP annot.
+* How to deal with marginals?  How about differential coverage?  Linkage going to be a real problem.

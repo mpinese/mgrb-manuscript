@@ -1,0 +1,2 @@
+sftp "m.pinese@garvan.org.au"@sftp-cancer.sanger.ac.uk /cosmic/grch37/cosmic/v83/VCF/CosmicCodingMuts.vcf.gz
+Downloaded 22 Dec 2017

@@ -1,0 +1,481 @@
+List	Class	Genes
+Arrhythmic Syndromes Aug 2015 Fatkin	Cardiac	CAV3
+Arrhythmic Syndromes Aug 2015 Fatkin	Cardiac	CASQ2
+Arrhythmic Syndromes Aug 2015 Fatkin	Cardiac	RYR2
+Arrhythmic Syndromes Aug 2015 Fatkin	Cardiac	SCN5A
+Arrhythmogenic Right Ventricular Cardiomyopathy Aug 2015 Fatkin	Cardiac	TTN
+Arrhythmogenic Right Ventricular Cardiomyopathy Aug 2015 Fatkin	Cardiac	DSC2
+Arrhythmogenic Right Ventricular Cardiomyopathy Aug 2015 Fatkin	Cardiac	DSG2
+Arrhythmogenic Right Ventricular Cardiomyopathy Aug 2015 Fatkin	Cardiac	DSP
+Arrhythmogenic Right Ventricular Cardiomyopathy Aug 2015 Fatkin	Cardiac	JUP
+Arrhythmogenic Right Ventricular Cardiomyopathy Aug 2015 Fatkin	Cardiac	PKP2
+Arrhythmogenic Right Ventricular Cardiomyopathy Aug 2015 Fatkin	Cardiac	RYR2
+Arrhythmogenic Right Ventricular Cardiomyopathy Aug 2015 Fatkin	Cardiac	TMEM43
+Cardiac Orphanet May 2015	Cardiac	ABCC9
+Cardiac Orphanet May 2015	Cardiac	ACAD8
+Cardiac Orphanet May 2015	Cardiac	ACAD9
+Cardiac Orphanet May 2015	Cardiac	ACADL
+Cardiac Orphanet May 2015	Cardiac	ACTC1
+Cardiac Orphanet May 2015	Cardiac	ACTN2
+Cardiac Orphanet May 2015	Cardiac	ACVR2B
+Cardiac Orphanet May 2015	Cardiac	AGK
+Cardiac Orphanet May 2015	Cardiac	AKAP9
+Cardiac Orphanet May 2015	Cardiac	ANK2
+Cardiac Orphanet May 2015	Cardiac	BAG3
+Cardiac Orphanet May 2015	Cardiac	CACNA1C
+Cardiac Orphanet May 2015	Cardiac	CACNA2D1
+Cardiac Orphanet May 2015	Cardiac	CACNB2
+Cardiac Orphanet May 2015	Cardiac	CALM1
+Cardiac Orphanet May 2015	Cardiac	CASQ2
+Cardiac Orphanet May 2015	Cardiac	CAV3
+Cardiac Orphanet May 2015	Cardiac	CFAP53
+Cardiac Orphanet May 2015	Cardiac	CFC1
+Cardiac Orphanet May 2015	Cardiac	CITED2
+Cardiac Orphanet May 2015	Cardiac	COQ9
+Cardiac Orphanet May 2015	Cardiac	CRELD1
+Cardiac Orphanet May 2015	Cardiac	CRYAB
+Cardiac Orphanet May 2015	Cardiac	CSRP3
+Cardiac Orphanet May 2015	Cardiac	CTNNA3
+Cardiac Orphanet May 2015	Cardiac	DES
+Cardiac Orphanet May 2015	Cardiac	DMD
+Cardiac Orphanet May 2015	Cardiac	DNAJC19
+Cardiac Orphanet May 2015	Cardiac	DOLK
+Cardiac Orphanet May 2015	Cardiac	DPP6
+Cardiac Orphanet May 2015	Cardiac	DSC2
+Cardiac Orphanet May 2015	Cardiac	DSG2
+Cardiac Orphanet May 2015	Cardiac	DSP
+Cardiac Orphanet May 2015	Cardiac	DTNA
+Cardiac Orphanet May 2015	Cardiac	ELAC2
+Cardiac Orphanet May 2015	Cardiac	ELN
+Cardiac Orphanet May 2015	Cardiac	EYA4
+Cardiac Orphanet May 2015	Cardiac	FHL2
+Cardiac Orphanet May 2015	Cardiac	FKTN
+Cardiac Orphanet May 2015	Cardiac	FLNA
+Cardiac Orphanet May 2015	Cardiac	GATA4
+Cardiac Orphanet May 2015	Cardiac	GATA5
+Cardiac Orphanet May 2015	Cardiac	GATA6
+Cardiac Orphanet May 2015	Cardiac	GATAD1
+Cardiac Orphanet May 2015	Cardiac	GDF1
+Cardiac Orphanet May 2015	Cardiac	GJA1
+Cardiac Orphanet May 2015	Cardiac	GJA5
+Cardiac Orphanet May 2015	Cardiac	GPD1L
+Cardiac Orphanet May 2015	Cardiac	GYS1
+Cardiac Orphanet May 2015	Cardiac	HCN4
+Cardiac Orphanet May 2015	Cardiac	JAG1
+Cardiac Orphanet May 2015	Cardiac	JUP
+Cardiac Orphanet May 2015	Cardiac	KCNA5
+Cardiac Orphanet May 2015	Cardiac	KCND3
+Cardiac Orphanet May 2015	Cardiac	KCNE1
+Cardiac Orphanet May 2015	Cardiac	KCNE2
+Cardiac Orphanet May 2015	Cardiac	KCNE3
+Cardiac Orphanet May 2015	Cardiac	KCNH2
+Cardiac Orphanet May 2015	Cardiac	KCNJ2
+Cardiac Orphanet May 2015	Cardiac	KCNJ5
+Cardiac Orphanet May 2015	Cardiac	KCNJ8
+Cardiac Orphanet May 2015	Cardiac	KCNQ1
+Cardiac Orphanet May 2015	Cardiac	LAMA4
+Cardiac Orphanet May 2015	Cardiac	LDB3
+Cardiac Orphanet May 2015	Cardiac	LEFTY2
+Cardiac Orphanet May 2015	Cardiac	LMNA
+Cardiac Orphanet May 2015	Cardiac	MED13L
+Cardiac Orphanet May 2015	Cardiac	MIB1
+Cardiac Orphanet May 2015	Cardiac	MRPL44
+Cardiac Orphanet May 2015	Cardiac	MT-CYB
+Cardiac Orphanet May 2015	Cardiac	MT-ND3
+Cardiac Orphanet May 2015	Cardiac	MT-ND4
+Cardiac Orphanet May 2015	Cardiac	MT-ND6
+Cardiac Orphanet May 2015	Cardiac	MT-TK
+Cardiac Orphanet May 2015	Cardiac	MT-TL1
+Cardiac Orphanet May 2015	Cardiac	MTO1
+Cardiac Orphanet May 2015	Cardiac	MYBPC3
+Cardiac Orphanet May 2015	Cardiac	MYH6
+Cardiac Orphanet May 2015	Cardiac	MYH7
+Cardiac Orphanet May 2015	Cardiac	MYH7B
+Cardiac Orphanet May 2015	Cardiac	MYH8
+Cardiac Orphanet May 2015	Cardiac	MYO6
+Cardiac Orphanet May 2015	Cardiac	MYPN
+Cardiac Orphanet May 2015	Cardiac	NDUFAF1
+Cardiac Orphanet May 2015	Cardiac	NEXN
+Cardiac Orphanet May 2015	Cardiac	NKX2-5
+Cardiac Orphanet May 2015	Cardiac	NKX2-6
+Cardiac Orphanet May 2015	Cardiac	NODAL
+Cardiac Orphanet May 2015	Cardiac	NOS1AP
+Cardiac Orphanet May 2015	Cardiac	NOTCH1
+Cardiac Orphanet May 2015	Cardiac	NPPA
+Cardiac Orphanet May 2015	Cardiac	NR2F2
+Cardiac Orphanet May 2015	Cardiac	NUP155
+Cardiac Orphanet May 2015	Cardiac	PITX2
+Cardiac Orphanet May 2015	Cardiac	PKP2
+Cardiac Orphanet May 2015	Cardiac	PLN
+Cardiac Orphanet May 2015	Cardiac	PLXND1
+Cardiac Orphanet May 2015	Cardiac	PRDM16
+Cardiac Orphanet May 2015	Cardiac	PRKAR1A
+Cardiac Orphanet May 2015	Cardiac	PSEN1
+Cardiac Orphanet May 2015	Cardiac	PSEN2
+Cardiac Orphanet May 2015	Cardiac	RAF1
+Cardiac Orphanet May 2015	Cardiac	RBM10
+Cardiac Orphanet May 2015	Cardiac	RBM20
+Cardiac Orphanet May 2015	Cardiac	RYR2
+Cardiac Orphanet May 2015	Cardiac	SCN1B
+Cardiac Orphanet May 2015	Cardiac	SCN2B
+Cardiac Orphanet May 2015	Cardiac	SCN3B
+Cardiac Orphanet May 2015	Cardiac	SCN4B
+Cardiac Orphanet May 2015	Cardiac	SCN5A
+Cardiac Orphanet May 2015	Cardiac	SDHA
+Cardiac Orphanet May 2015	Cardiac	SGCD
+Cardiac Orphanet May 2015	Cardiac	SLC25A20
+Cardiac Orphanet May 2015	Cardiac	SLC25A3
+Cardiac Orphanet May 2015	Cardiac	SLC25A4
+Cardiac Orphanet May 2015	Cardiac	SLMAP
+Cardiac Orphanet May 2015	Cardiac	SMAD6
+Cardiac Orphanet May 2015	Cardiac	SNTA1
+Cardiac Orphanet May 2015	Cardiac	TAZ
+Cardiac Orphanet May 2015	Cardiac	TBX20
+Cardiac Orphanet May 2015	Cardiac	TCAP
+Cardiac Orphanet May 2015	Cardiac	TGFB3
+Cardiac Orphanet May 2015	Cardiac	TLL1
+Cardiac Orphanet May 2015	Cardiac	TMEM43
+Cardiac Orphanet May 2015	Cardiac	TMPO
+Cardiac Orphanet May 2015	Cardiac	TNNC1
+Cardiac Orphanet May 2015	Cardiac	TNNI3
+Cardiac Orphanet May 2015	Cardiac	TNNT2
+Cardiac Orphanet May 2015	Cardiac	TPM1
+Cardiac Orphanet May 2015	Cardiac	TRDN
+Cardiac Orphanet May 2015	Cardiac	TRPM4
+Cardiac Orphanet May 2015	Cardiac	TTN
+Cardiac Orphanet May 2015	Cardiac	TTR
+Cardiac Orphanet May 2015	Cardiac	TXNRD2
+Cardiac Orphanet May 2015	Cardiac	VCL
+Cardiac Orphanet May 2015	Cardiac	ZFPM2
+Cardiac Orphanet May 2015	Cardiac	ZIC3
+Cardiomyopathy, MedGenome, July 2015	Cardiac	ABCC9
+Cardiomyopathy, MedGenome, July 2015	Cardiac	ACTC1
+Cardiomyopathy, MedGenome, July 2015	Cardiac	ACTN2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	BAG3
+Cardiomyopathy, MedGenome, July 2015	Cardiac	CALR3
+Cardiomyopathy, MedGenome, July 2015	Cardiac	CAV3
+Cardiomyopathy, MedGenome, July 2015	Cardiac	CRYAB
+Cardiomyopathy, MedGenome, July 2015	Cardiac	CSRP3
+Cardiomyopathy, MedGenome, July 2015	Cardiac	CTNNA3
+Cardiomyopathy, MedGenome, July 2015	Cardiac	DES
+Cardiomyopathy, MedGenome, July 2015	Cardiac	DMD
+Cardiomyopathy, MedGenome, July 2015	Cardiac	DSC2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	DSG2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	DSP
+Cardiomyopathy, MedGenome, July 2015	Cardiac	EYA4
+Cardiomyopathy, MedGenome, July 2015	Cardiac	FKTN
+Cardiomyopathy, MedGenome, July 2015	Cardiac	GATAD1
+Cardiomyopathy, MedGenome, July 2015	Cardiac	JPH2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	JUP
+Cardiomyopathy, MedGenome, July 2015	Cardiac	LAMA4
+Cardiomyopathy, MedGenome, July 2015	Cardiac	LDB3
+Cardiomyopathy, MedGenome, July 2015	Cardiac	LMNA
+Cardiomyopathy, MedGenome, July 2015	Cardiac	MYBPC3
+Cardiomyopathy, MedGenome, July 2015	Cardiac	MYH6
+Cardiomyopathy, MedGenome, July 2015	Cardiac	MYH7
+Cardiomyopathy, MedGenome, July 2015	Cardiac	MYL2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	MYL3
+Cardiomyopathy, MedGenome, July 2015	Cardiac	MYLK2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	MYOZ2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	MYPN
+Cardiomyopathy, MedGenome, July 2015	Cardiac	NEXN
+Cardiomyopathy, MedGenome, July 2015	Cardiac	PKP2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	PLN
+Cardiomyopathy, MedGenome, July 2015	Cardiac	PRDM16
+Cardiomyopathy, MedGenome, July 2015	Cardiac	PRKAG2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	PSEN1
+Cardiomyopathy, MedGenome, July 2015	Cardiac	PSEN2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	RBM20
+Cardiomyopathy, MedGenome, July 2015	Cardiac	RYR2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	SCN5A
+Cardiomyopathy, MedGenome, July 2015	Cardiac	SDHA
+Cardiomyopathy, MedGenome, July 2015	Cardiac	SGCD
+Cardiomyopathy, MedGenome, July 2015	Cardiac	TCAP
+Cardiomyopathy, MedGenome, July 2015	Cardiac	TGFB3
+Cardiomyopathy, MedGenome, July 2015	Cardiac	TMEM43
+Cardiomyopathy, MedGenome, July 2015	Cardiac	TMPO
+Cardiomyopathy, MedGenome, July 2015	Cardiac	TNNC1
+Cardiomyopathy, MedGenome, July 2015	Cardiac	TNNI3
+Cardiomyopathy, MedGenome, July 2015	Cardiac	TNNT2
+Cardiomyopathy, MedGenome, July 2015	Cardiac	TPM1
+Cardiomyopathy, MedGenome, July 2015	Cardiac	TTN
+Cardiomyopathy, MedGenome, July 2015	Cardiac	VCL
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	ACTC1
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	MYBPC3
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	MYH6
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	MYH7
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	TNNC1
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	TNNI3
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	TNNT2
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	TTN
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	ACTN2
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	ANKRD1
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	BAG3
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	CSRP3
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	FHL2
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	LDB3
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	MURC
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	MYPN
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	NEBL
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	NEXN
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	TCAP
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	VCL
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	DES
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	DMD
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	CHRM2
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	ILK
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	LAMA4
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	SGCB
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	SGCD
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	DSC2
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	DSG2
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	DSP
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	PKP2
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	EMD
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	EYA4
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	GATAD1
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	LMNA
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	NKX2-5
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	PRDM16
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	RBM20
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	TMPO
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	PLN
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	ABCC9
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	SCN5A
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	CRYAB
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	FKTN
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	PSEN1
+Cardiomyopathy Dilated Fatkin Aug 2015	Cardiac	PSEN2
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	ACTC1
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	MYBPC3
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	MYH6
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	MYH7
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	MYL2
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	MYL3
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	MYLK2
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	TNNC1
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	TNNI3
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	TNNT2
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	TTN
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	ACTN2
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	ANKRD1
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	CSRP3
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	LDB3
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	MYOZ2
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	NEXN
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	TCAP
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	VCL
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	CAV3
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	CASQ2
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	JPH2
+Cardiomyopathy Hypertrophic Fatkin Aug 2015	Cardiac	PLN
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	ACTC1
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	MYBPC3
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	MYH7
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	TNNI3
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	TNNT2
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	LDB3
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	DTNA
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	DSP
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	LMNA
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	NKX2-5
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	CASQ2
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	SCN5A
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	MIB1
+Left Ventricular Non Compaction Aug 2015 Fatkin	Cardiac	YWHAE
+Restrictive Cardiomyopathy Aug 2015 Fatkin	Cardiac	ACTC1
+Restrictive Cardiomyopathy Aug 2015 Fatkin	Cardiac	MYH7
+Restrictive Cardiomyopathy Aug 2015 Fatkin	Cardiac	MYL2
+Restrictive Cardiomyopathy Aug 2015 Fatkin	Cardiac	MYL3
+Restrictive Cardiomyopathy Aug 2015 Fatkin	Cardiac	TNNI3
+Restrictive Cardiomyopathy Aug 2015 Fatkin	Cardiac	TNNT2
+Restrictive Cardiomyopathy Aug 2015 Fatkin	Cardiac	DES
+ACMG SF 2.0 Cardiac AD	Cardiac	ACTC1
+ACMG SF 2.0 Cardiac AD	Cardiac	DSC2
+ACMG SF 2.0 Cardiac AD	Cardiac	DSG2
+ACMG SF 2.0 Cardiac AD	Cardiac	DSP
+ACMG SF 2.0 Cardiac AD	Cardiac	KCNH2
+ACMG SF 2.0 Cardiac AD	Cardiac	KCNQ1
+ACMG SF 2.0 Cardiac AD	Cardiac	LMNA
+ACMG SF 2.0 Cardiac AD	Cardiac	MYBPC3
+ACMG SF 2.0 Cardiac AD	Cardiac	MYH7
+ACMG SF 2.0 Cardiac AD	Cardiac	MYL2
+ACMG SF 2.0 Cardiac AD	Cardiac	MYL3
+ACMG SF 2.0 Cardiac AD	Cardiac	PKP2
+ACMG SF 2.0 Cardiac AD	Cardiac	PRKAG2
+ACMG SF 2.0 Cardiac AD	Cardiac	RYR2
+ACMG SF 2.0 Cardiac AD	Cardiac	SCN5A
+ACMG SF 2.0 Cardiac AD	Cardiac	TMEM43
+ACMG SF 2.0 Cardiac AD	Cardiac	TNNI3
+ACMG SF 2.0 Cardiac AD	Cardiac	TNNT2
+ACMG SF 2.0 Cardiac AD	Cardiac	TPM1
+Vascular Orphanet May 2015	Vascular	ABCC6
+Vascular Orphanet May 2015	Vascular	ACTA2
+Vascular Orphanet May 2015	Vascular	ANTXR1
+Vascular Orphanet May 2015	Vascular	BRCC3
+Vascular Orphanet May 2015	Vascular	CCBE1
+Vascular Orphanet May 2015	Vascular	CECR1
+Vascular Orphanet May 2015	Vascular	COL3A1
+Vascular Orphanet May 2015	Vascular	ENG
+Vascular Orphanet May 2015	Vascular	ENPP1
+Vascular Orphanet May 2015	Vascular	FAT4
+Vascular Orphanet May 2015	Vascular	FLT4
+Vascular Orphanet May 2015	Vascular	FOXC2
+Vascular Orphanet May 2015	Vascular	GJC2
+Vascular Orphanet May 2015	Vascular	GLMN
+Vascular Orphanet May 2015	Vascular	GNAQ
+Vascular Orphanet May 2015	Vascular	GUCY1A3
+Vascular Orphanet May 2015	Vascular	HTRA1
+Vascular Orphanet May 2015	Vascular	KDR
+Vascular Orphanet May 2015	Vascular	MYH11
+Vascular Orphanet May 2015	Vascular	NT5E
+Vascular Orphanet May 2015	Vascular	RASA1
+Vascular Orphanet May 2015	Vascular	RNF213
+Vascular Orphanet May 2015	Vascular	SLC2A10
+Vascular Orphanet May 2015	Vascular	SMAD3
+Vascular Orphanet May 2015	Vascular	STOX1
+Vascular Orphanet May 2015	Vascular	TEK
+Vascular Orphanet May 2015	Vascular	TF
+Vascular Orphanet May 2015	Vascular	TGFBR3
+Vascular Orphanet May 2015	Vascular	TREX1
+Vascular Orphanet May 2015	Vascular	TSC1
+Vascular Orphanet May 2015	Vascular	TSC2
+Vascular Orphanet May 2015	Vascular	VEGFC
+ACMG SF 2.0 Vascular AD	Vascular	ACTA2
+ACMG SF 2.0 Vascular AD	Vascular	MYH11
+ACMG SF 2.0 Vascular SD	Vascular	APOB
+ACMG SF 2.0 Vascular SD	Vascular	LDLR
+ACMG SF 2.0 Vascular SD	Vascular	PCSK9
+ACMG SF 2.0 Cancer AD	Cancer	APC
+ACMG SF 2.0 Cancer AD	Cancer	BMPR1A
+ACMG SF 2.0 Cancer AD	Cancer	BRCA1
+ACMG SF 2.0 Cancer AD	Cancer	BRCA2
+ACMG SF 2.0 Cancer AD	Cancer	MEN1
+ACMG SF 2.0 Cancer AD	Cancer	MLH1
+ACMG SF 2.0 Cancer AD	Cancer	MSH2
+ACMG SF 2.0 Cancer AD	Cancer	MSH6
+ACMG SF 2.0 Cancer AD	Cancer	NF2
+ACMG SF 2.0 Cancer AD	Cancer	PMS2
+ACMG SF 2.0 Cancer AD	Cancer	PTEN
+ACMG SF 2.0 Cancer AD	Cancer	RB1
+ACMG SF 2.0 Cancer AD	Cancer	RET
+ACMG SF 2.0 Cancer AD	Cancer	SDHAF2
+ACMG SF 2.0 Cancer AD	Cancer	SDHB
+ACMG SF 2.0 Cancer AD	Cancer	SDHC
+ACMG SF 2.0 Cancer AD	Cancer	SDHD
+ACMG SF 2.0 Cancer AD	Cancer	SMAD4
+ACMG SF 2.0 Cancer AD	Cancer	STK11
+ACMG SF 2.0 Cancer AD	Cancer	TP53
+ACMG SF 2.0 Cancer AD	Cancer	TSC1
+ACMG SF 2.0 Cancer AD	Cancer	TSC2
+ACMG SF 2.0 Cancer AD	Cancer	VHL
+ACMG SF 2.0 Cancer AD	Cancer	WT1
+ACMG SF 2.0 Connective AD	Connective	COL3A1
+ACMG SF 2.0 Connective AD	Connective	FBN1
+ACMG SF 2.0 Connective AD	Connective	SMAD3
+ACMG SF 2.0 Connective AD	Connective	TGFBR1
+ACMG SF 2.0 Connective AD	Connective	TGFBR2
+ACMG SF 2.0 Other AD	Other	CACNA1S
+ACMG SF 2.0 Other AD	Other	RYR1
+ACMG SF 2.0 Other AR	Other	ATP7B
+ACMG SF 2.0 Other XL	Other	GLA
+ACMG SF 2.0 Other XL	Other	OTC
+COSMIC CGC 20171020 Germline	Cancer Germline	ALK
+COSMIC CGC 20171020 Germline	Cancer Germline	APC
+COSMIC CGC 20171020 Germline	Cancer Germline	APOBEC3B
+COSMIC CGC 20171020 Germline	Cancer Germline	AR
+COSMIC CGC 20171020 Germline	Cancer Germline	ATM
+COSMIC CGC 20171020 Germline	Cancer Germline	ATR
+COSMIC CGC 20171020 Germline	Cancer Germline	AXIN2
+COSMIC CGC 20171020 Germline	Cancer Germline	BAP1
+COSMIC CGC 20171020 Germline	Cancer Germline	BLM
+COSMIC CGC 20171020 Germline	Cancer Germline	BMPR1A
+COSMIC CGC 20171020 Germline	Cancer Germline	BRCA1
+COSMIC CGC 20171020 Germline	Cancer Germline	BRCA2
+COSMIC CGC 20171020 Germline	Cancer Germline	BRIP1
+COSMIC CGC 20171020 Germline	Cancer Germline	BUB1B
+COSMIC CGC 20171020 Germline	Cancer Germline	CDC73
+COSMIC CGC 20171020 Germline	Cancer Germline	CDH1
+COSMIC CGC 20171020 Germline	Cancer Germline	CDK4
+COSMIC CGC 20171020 Germline	Cancer Germline	CDKN1B
+COSMIC CGC 20171020 Germline	Cancer Germline	CDKN2A
+COSMIC CGC 20171020 Germline	Cancer Germline	CHEK2
+COSMIC CGC 20171020 Germline	Cancer Germline	CXCR4
+COSMIC CGC 20171020 Germline	Cancer Germline	CYLD
+COSMIC CGC 20171020 Germline	Cancer Germline	DDB2
+COSMIC CGC 20171020 Germline	Cancer Germline	DICER1
+COSMIC CGC 20171020 Germline	Cancer Germline	EGFR
+COSMIC CGC 20171020 Germline	Cancer Germline	ERBB4
+COSMIC CGC 20171020 Germline	Cancer Germline	ERCC2
+COSMIC CGC 20171020 Germline	Cancer Germline	ERCC3
+COSMIC CGC 20171020 Germline	Cancer Germline	ERCC4
+COSMIC CGC 20171020 Germline	Cancer Germline	ERCC5
+COSMIC CGC 20171020 Germline	Cancer Germline	EXT1
+COSMIC CGC 20171020 Germline	Cancer Germline	EXT2
+COSMIC CGC 20171020 Germline	Cancer Germline	FANCA
+COSMIC CGC 20171020 Germline	Cancer Germline	FANCC
+COSMIC CGC 20171020 Germline	Cancer Germline	FANCD2
+COSMIC CGC 20171020 Germline	Cancer Germline	FANCE
+COSMIC CGC 20171020 Germline	Cancer Germline	FANCF
+COSMIC CGC 20171020 Germline	Cancer Germline	FANCG
+COSMIC CGC 20171020 Germline	Cancer Germline	FAT1
+COSMIC CGC 20171020 Germline	Cancer Germline	FH
+COSMIC CGC 20171020 Germline	Cancer Germline	FLCN
+COSMIC CGC 20171020 Germline	Cancer Germline	GPC3
+COSMIC CGC 20171020 Germline	Cancer Germline	HNF1A
+COSMIC CGC 20171020 Germline	Cancer Germline	HRAS
+COSMIC CGC 20171020 Germline	Cancer Germline	KDR
+COSMIC CGC 20171020 Germline	Cancer Germline	KIT
+COSMIC CGC 20171020 Germline	Cancer Germline	LMO1
+COSMIC CGC 20171020 Germline	Cancer Germline	LZTR1
+COSMIC CGC 20171020 Germline	Cancer Germline	MAX
+COSMIC CGC 20171020 Germline	Cancer Germline	MEN1
+COSMIC CGC 20171020 Germline	Cancer Germline	MLH1
+COSMIC CGC 20171020 Germline	Cancer Germline	MPL
+COSMIC CGC 20171020 Germline	Cancer Germline	MSH2
+COSMIC CGC 20171020 Germline	Cancer Germline	MSH6
+COSMIC CGC 20171020 Germline	Cancer Germline	MUTYH
+COSMIC CGC 20171020 Germline	Cancer Germline	NBN
+COSMIC CGC 20171020 Germline	Cancer Germline	NF1
+COSMIC CGC 20171020 Germline	Cancer Germline	NF2
+COSMIC CGC 20171020 Germline	Cancer Germline	PALB2
+COSMIC CGC 20171020 Germline	Cancer Germline	PDGFRA
+COSMIC CGC 20171020 Germline	Cancer Germline	PHOX2B
+COSMIC CGC 20171020 Germline	Cancer Germline	PMS2
+COSMIC CGC 20171020 Germline	Cancer Germline	POLE
+COSMIC CGC 20171020 Germline	Cancer Germline	PRF1
+COSMIC CGC 20171020 Germline	Cancer Germline	PRKAR1A
+COSMIC CGC 20171020 Germline	Cancer Germline	PTCH1
+COSMIC CGC 20171020 Germline	Cancer Germline	PTEN
+COSMIC CGC 20171020 Germline	Cancer Germline	PTPN13
+COSMIC CGC 20171020 Germline	Cancer Germline	RB1
+COSMIC CGC 20171020 Germline	Cancer Germline	RECQL4
+COSMIC CGC 20171020 Germline	Cancer Germline	RET
+COSMIC CGC 20171020 Germline	Cancer Germline	SBDS
+COSMIC CGC 20171020 Germline	Cancer Germline	SDHA
+COSMIC CGC 20171020 Germline	Cancer Germline	SDHAF2
+COSMIC CGC 20171020 Germline	Cancer Germline	SDHB
+COSMIC CGC 20171020 Germline	Cancer Germline	SDHC
+COSMIC CGC 20171020 Germline	Cancer Germline	SDHD
+COSMIC CGC 20171020 Germline	Cancer Germline	SETBP1
+COSMIC CGC 20171020 Germline	Cancer Germline	SMAD4
+COSMIC CGC 20171020 Germline	Cancer Germline	SMARCB1
+COSMIC CGC 20171020 Germline	Cancer Germline	SMARCE1
+COSMIC CGC 20171020 Germline	Cancer Germline	SPOP
+COSMIC CGC 20171020 Germline	Cancer Germline	STAT3
+COSMIC CGC 20171020 Germline	Cancer Germline	STK11
+COSMIC CGC 20171020 Germline	Cancer Germline	SUFU
+COSMIC CGC 20171020 Germline	Cancer Germline	TERT
+COSMIC CGC 20171020 Germline	Cancer Germline	TGFBR2
+COSMIC CGC 20171020 Germline	Cancer Germline	TMEM127
+COSMIC CGC 20171020 Germline	Cancer Germline	TP53
+COSMIC CGC 20171020 Germline	Cancer Germline	TP63
+COSMIC CGC 20171020 Germline	Cancer Germline	TSC1
+COSMIC CGC 20171020 Germline	Cancer Germline	TSC2
+COSMIC CGC 20171020 Germline	Cancer Germline	TSHR
+COSMIC CGC 20171020 Germline	Cancer Germline	VHL
+COSMIC CGC 20171020 Germline	Cancer Germline	WAS
+COSMIC CGC 20171020 Germline	Cancer Germline	WRN
+COSMIC CGC 20171020 Germline	Cancer Germline	WT1
+COSMIC CGC 20171020 Germline	Cancer Germline	XPA
+COSMIC CGC 20171020 Germline	Cancer Germline	XPC

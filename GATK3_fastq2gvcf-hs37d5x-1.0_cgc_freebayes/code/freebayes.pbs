@@ -1,0 +1,48 @@
+#!/bin/bash
+#PBS -P wq2
+#PBS -q normalbw
+#PBS -l walltime=1:15:00
+#PBS -l ncpus=1
+#PBS -l mem=1G
+#PBS -l other=gdata3
+#PBS -l wd
+#PBS -N fb
+set -euo pipefail
+
+# Environment variables:
+# REFERENCE         "../../../../../resources/hs37d5x/reference_genome/hs37d5x.fa"
+# INBAM
+# INBED
+# OUTVCFGZ
+# QUEUEFILE
+# LOCKFILE
+# DONEFILE
+
+
+if [ -e "${DONEFILE}" ]; then
+  echo "${OUTVCFGZ} already done"
+  exit 0
+fi
+if [ -e "${LOCKFILE}" ]; then
+  echo "${OUTVCFGZ} already running"
+  exit 0
+fi
+
+touch "${LOCKFILE}" && \
+rm -f "${QUEUEFILE}" && \
+./bin/freebayes -f "$REFERENCE" -t "$INBED" \
+  --pooled-continuous \
+  --standard-filters \
+  --min-alternate-fraction 0 --min-alternate-count 2 \
+  --hwe-priors-off --allele-balance-priors-off \
+  --use-mapping-quality \
+  "$INBAM" | bgzip > "$OUTVCFGZ" && \
+tabix "$OUTVCFGZ" && \
+gzip -dc "$OUTVCFGZ" | \
+  ./freebayes_vcfsplitmulti.py | \
+  ./bin/vt normalize -m -r "${REFERENCE}" - | \
+  ./freebayes_vcf2tab.py | \
+  awk -f freebayes_tab_filter.awk | \
+  gzip > "${OUTVCFGZ%.vcf.gz}.tsv.gz" && \
+touch "${DONEFILE}" && \
+rm -f "${LOCKFILE}"

@@ -1,0 +1,33 @@
+#!/bin/bash
+#PBS -P wq2
+#PBS -q normal
+#PBS -l walltime=00:05:00
+#PBS -l mem=100MB
+#PBS -l ncpus=1
+#PBS -l other=gdata3
+#PBS -l wd
+#PBS -N samtools_mt
+set -euo pipefail
+
+queue_file="${OUTFILE}.queued"
+lock_file="${OUTFILE}.lock"
+done_file="${OUTFILE}.done"
+term_file="${OUTFILE}.term"
+log_file="${OUTFILE}.log"
+
+function term_handler
+{
+    rm -f "${lock_file}"
+    touch "${term_file}"
+    exit 1
+}
+trap 'term_handler' TERM
+
+touch "${lock_file}"
+rm -f "${queue_file}"
+
+./bin/samtools view -b -o "${OUTFILE}" "${INFILE}" ${CHROMS} 2>&1 | tee -a "${log_file}"
+./bin/samtools index "${OUTFILE}" 2>&1 | tee -a "${log_file}"
+
+touch "${done_file}"
+rm -f "${lock_file}"

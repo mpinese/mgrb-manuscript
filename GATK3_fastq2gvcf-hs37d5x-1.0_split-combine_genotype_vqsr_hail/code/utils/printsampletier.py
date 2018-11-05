@@ -1,0 +1,9 @@
+#!./bin/pyhail.sh
+import hail
+import sys
+import pprint
+
+hc = hail.HailContext(tmp_dir = 'tmp/hail')
+vds = hc.read(sys.argv[1])
+
+print(vds.samples_table().query('sa.map(s => sa.qc.tier).counter()'))

@@ -1,0 +1,70 @@
+Total:
+    samples=2845, 
+    variants=74045272, 
+    call_rate=0.992096, 
+    contigs=['X', '12', '8', '19', '4', '15', '11', '9', 'Y', '22', '13', '16', '5', '10', '21', '6', '1', '17', '14', 'MT', '20', '2', '18', '7', '3'], 
+    multiallelics=6195847, 
+    snps=66545550, 
+    mnps=0, 
+    insertions=8180960, 
+    deletions=9419976, 
+    complex=149, 
+    star=3547445, 
+    max_alleles=50
+
+Not control:
+    samples=2843, 
+    variants=73961657, 
+    call_rate=0.992095, 
+    contigs=['X', '12', '8', '19', '4', '15', '11', '9', 'Y', '22', '13', '16', '5', '10', '21', '6', '1', '17', '14', 'MT', '20', '2', '18', '7', '3'], 
+    multiallelics=6195678, 
+    snps=66468914, 
+    mnps=0, 
+    insertions=8178562, 
+    deletions=9415256, 
+    complex=149, 
+    star=3547361, 
+    max_alleles=50
+
+ASPREE:
+    samples=1853, 
+    variants=73961657, 
+    call_rate=0.992219, 
+    contigs=['X', '12', '8', '19', '4', '15', '11', '9', 'Y', '22', '13', '16', '5', '10', '21', '6', '1', '17', '14', 'MT', '20', '2', '18', '7', '3'], 
+    multiallelics=6195678, 
+    snps=66468914, 
+    mnps=0, 
+    insertions=8178562, 
+    deletions=9415256, 
+    complex=149, 
+    star=3547361, 
+    max_alleles=50
+
+45nUp:
+    samples=990, 
+    variants=73961657, 
+    call_rate=0.991863, 
+    contigs=['X', '12', '8', '19', '4', '15', '11', '9', 'Y', '22', '13', '16', '5', '10', '21', '6', '1', '17', '14', 'MT', '20', '2', '18', '7', '3'], 
+    multiallelics=6195678, 
+    snps=66468914, 
+    mnps=0, 
+    insertions=8178562, 
+    deletions=9415256, 
+    complex=149, 
+    star=3547361, 
+    max_alleles=50
+
+Control:
+    samples=2, 
+    variants=73961657, 
+    call_rate=0.992481, 
+    contigs=['X', '12', '8', '19', '4', '15', '11', '9', 'Y', '22', '13', '16', '5', '10', '21', '6', '1', '17', '14', 'MT', '20', '2', '18', '7', '3'], 
+    multiallelics=6195678, 
+    snps=66468914, 
+    mnps=0, 
+    insertions=8178562, 
+    deletions=9415256, 
+    complex=149, 
+    star=3547361, 
+    max_alleles=50
+

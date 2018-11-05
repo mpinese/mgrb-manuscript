@@ -1,0 +1,62 @@
+#!/bin/bash
+#PBS -q normal
+#PBS -P wq2
+#PBS -l ncpus=2
+#PBS -l mem=1G
+#PBS -l other=gdata3
+#PBS -l walltime=12:00:00
+#PBS -l wd
+
+
+queuefile="${OUTFILE}.queued"
+termfile="${OUTFILE}.term"
+lockfile="${OUTFILE}.lock"
+donefile="${OUTFILE}.done"
+
+
+term_handler()
+{
+  rm -f "${lockfile}"
+  touch "${termfile}"
+  exit 1
+}
+trap 'term_handler' TERM
+
+
+touch "${lockfile}"
+rm -f "${queuefile}"
+
+
+./bin/samtools mpileup \
+  -C 50 -d 1000 -E -v -u -t AD -q 20 -Q 20 -I \
+  -f ../../../../../resources/hs37d5x/reference_genome/hs37d5x.fa \
+  -l 01_positions.list \
+  "${INFILE}" | \
+awk '
+  BEGIN {
+    FS="\t"
+    OFS="\t"
+  }
+
+  /^[^#]/ {
+    split($9, format, ":")
+    split($10, data, ":")
+    for (i in format) {
+      if (format[i] == "AD")
+        break
+    }
+    if (format[i] == "AD") {
+      split(data[i], ads, ",")
+      if (ads[1] == 0 || ads[2] == 0)
+        next
+      split($5, alleles, ",")
+      if (alleles[1] != "<*>")
+          print $1, $2, ads[1]+ads[2], ads[2]
+    }
+  }' | \
+bgzip > "${OUTFILE}"
+
+tabix -s 1 -b 2 -e 2 "${OUTFILE}"
+
+touch "${donefile}"
+rm -f "${lockfile}"

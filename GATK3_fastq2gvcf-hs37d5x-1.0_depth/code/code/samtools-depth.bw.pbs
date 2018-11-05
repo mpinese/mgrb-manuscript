@@ -1,0 +1,41 @@
+#!/bin/bash
+#PBS -P wq2
+#PBS -q normalbw
+#PBS -l walltime=12:00:00
+#PBS -l mem=32GB
+#PBS -l ncpus=2
+#PBS -l jobfs=100GB
+#PBS -l other=gdata3
+#PBS -l wd
+#PBS -N depth
+set -euo pipefail
+
+# INPUT ENVIRONMENT VARIABLES
+# INFILE
+# OUTFILE
+# SAMPLEID
+
+queue_file="${OUTFILE}.queued"
+lock_file="${OUTFILE}.lock"
+done_file="${OUTFILE}.done"
+term_file="${OUTFILE}.term"
+log_file="${OUTFILE}.log"
+
+term_handler()
+{
+    rm -f "${lock_file}"
+    touch "${term_file}"
+    exit 1
+}
+trap 'term_handler' TERM
+
+touch "${lock_file}"
+rm -f "${queue_file}"
+
+./bin/samtools-bw depth -aa -q 20 -Q 20 "${INFILE}" | \
+  awk 'BEGIN {OFS="\t"} {print $1, $2-1, $2, $3}' | \
+  ./bin/sort-bed --max-mem 16G --tmpdir "${PBS_JOBFS}" - | \
+  ./bin/starch --note="${SAMPLEID}" - > "${OUTFILE}"
+
+touch "${done_file}"
+rm -f "${lock_file}"

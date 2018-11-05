@@ -1,0 +1,53 @@
+#!/bin/bash
+set -euo pipefail
+
+REFERENCE="/g/data3/wq2/resources/hs37d5x/reference_genome/hs37d5x.fa"
+#SHARD_FILE="/g/data3/wq2/resources/hs37d5x/reference_genome/hs37d5x.shards"
+SHARD_FILE="/g/data3/wq2/resources/hs37d5x/qc_loci/qc_loci.InfiniumQCArray-24v1-0_A3.shards"
+INPUT_DIR="/g/data3/wq2/results/phase2/hs37d5x/GATK3_fastq2gvcf-hs37d5x-1.0/gvcfs"
+OUTPUT_STEM="../MGRB.phase2qc"
+TARGET_CHROMS=($(seq 1 22) X Y MT)
+TEMP="./tmp"
+
+mkdir -p "${TEMP}"
+
+groups=($(for f in "${INPUT_DIR}"/*.g.vcf.gz; do f=$(basename "$f"); echo ${f:0:4}; done | sort | uniq))
+
+for group in "${groups[@]}"; do
+  echo "${group}"
+
+  input_list_tmpfile=$(mktemp "${TEMP}/vcf_list.group${group}.XXXXXX.list")
+  ls -1 "${INPUT_DIR}/${group}"?_*.g.vcf.gz > "${input_list_tmpfile}"
+  source_descriptor="-V \"${input_list_tmpfile}\""
+
+  while IFS=$'\t' read -r -a shard_array; do
+    shard_chrom="${shard_array[0]}"
+    shard_start="${shard_array[5]}"
+    shard_end="${shard_array[2]}"
+    shard_id="${shard_array[3]}"
+
+    in_target_chroms=0
+    for target_chrom in ${TARGET_CHROMS[@]}; do
+      if [ "${shard_chrom}" == "${target_chrom}" ]; then
+        in_target_chroms=1
+        break
+      fi
+    done
+
+    if [ ${in_target_chroms} -eq 1 ]; then
+      outfile="${OUTPUT_STEM}.group${group}.shard${shard_id}.chrom${shard_chrom}.pos${shard_start}-${shard_end}.g.vcf.gz"
+      queuefile="${outfile}.queued"
+      lockfile="${outfile}.lock"
+      donefile="${outfile}.done"
+
+      if [ -e "${queuefile}" ]; then echo "  ${outfile} already queued"
+      elif [ -e "${lockfile}" ]; then echo "  ${outfile} already running"
+      elif [ -e "${donefile}" ]; then echo "  ${outfile} already done"
+      else
+        qsub -z -vREFERENCE="\"${REFERENCE}\"",OUT_FILE="\"${outfile}\"",SHARD="\"${shard_chrom}:${shard_start}-${shard_end}\"",SOURCE_DESCRIPTOR="\"${source_descriptor}\"" -N SCgVCF1 split_combine.pbs
+        touch "${queuefile}"
+        echo "  ${outfile} queued"
+      fi
+    fi
+  done < "${SHARD_FILE}"
+done

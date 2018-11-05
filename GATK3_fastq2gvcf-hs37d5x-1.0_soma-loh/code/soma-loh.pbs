@@ -1,0 +1,49 @@
+#!/bin/bash
+#PBS -l jobfs=50G
+
+set -euo pipefail
+
+# Environment variables:
+# GATK      Path to GATK jar
+# LOCI      Path to loci file
+# GC        Path to GC file
+# AFFINITY  Path to affinity file
+# REFERENCE Path to reference fa
+# JOBS      Path to job spec file
+# PARTASKS  Number of parallel processes to run
+
+export TMPDIR="${PBS_JOBFS}/tmp"
+mkdir -p "${TMPDIR}"
+
+soma_loh()
+{
+  in_bam="$1"
+  out_prefix="$2"
+
+  if [ -e "${out_prefix}.done" ] | [ -e "${out_prefix}.lock" ]; then
+    return
+  fi
+  touch "${out_prefix}.lock"
+
+#  if [ ! -e "${out_prefix}.afs.xz.done" ]; then
+#    bin/generate-afs.sh "${GATK}" "${REFERENCE}" "${LOCI}" "${in_bam}" "${out_prefix}.afs.xz" && \
+#    touch "${out_prefix}.afs.xz.done"
+#  fi
+
+  if [ ! -e "${out_prefix}.loh.poisson2.rds.done" ]; then
+    bin/find-aneuploidy2.R --model=poisson --maxploidy=2 --diag="${out_prefix}.loh.poisson2.pdf" "${AFFINITY}" "${GC}" "${out_prefix}.afs.xz" "${out_prefix}.loh.poisson2.rds" && \
+    touch "${out_prefix}.loh.poisson2.rds.done"
+  fi
+
+  if [ ! -e "${out_prefix}.loh.nb2.rds.done" ]; then
+    bin/find-aneuploidy2.R --model=nb --maxploidy=2 --diag="${out_prefix}.loh.nb2.pdf" "${AFFINITY}" "${GC}" "${out_prefix}.afs.xz" "${out_prefix}.loh.nb2.rds" && \
+    touch "${out_prefix}.loh.nb2.rds.done"
+  fi
+
+  rm -f "${out_prefix}.lock" && touch "${out_prefix}.done"
+}
+
+export -f soma_loh
+
+
+./bin/parallel --gnu -j "${PARTASKS}" --colsep '\t' soma_loh "{1}" "{2}" :::: "${JOBS}"

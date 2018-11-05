@@ -1,0 +1,65 @@
+#!/bin/bash
+#PBS -P wq2
+#PBS -q normal
+#PBS -l walltime=32:00:00
+#PBS -l mem=24GB
+#PBS -l jobfs=400GB
+#PBS -l ncpus=2
+#PBS -l other=gdata3
+#PBS -l wd
+#PBS -N gridss
+set -euo pipefail
+
+mkdir -p "${PBS_JOBFS}/GRIDSS"
+
+out_file_raw="${OUTFILE_VCFGZ}.temp.vcf"
+
+queue_file="${OUTFILE_VCFGZ}.queued"
+lock_file="${OUTFILE_VCFGZ}.lock"
+done_file="${OUTFILE_VCFGZ}.done"
+term_file="${OUTFILE_VCFGZ}.term"
+log_file="${OUTFILE_VCFGZ}.log"
+
+term_handler()
+{
+    rm -f "${lock_file}"
+    touch "${term_file}"
+    exit 1
+}
+trap 'term_handler' TERM
+
+module load java/jdk1.8.0_60
+
+export HOME=/home/569/mxp569
+[ -n $PATH ] && export PATH=$HOME/.local/bin:$HOME/.local/usr/bin:$PATH || export PATH=$HOME/.local/bin:$HOME/.local/usr/bin
+[ -n $CPATH ] && export CPATH=$HOME/.local/include:$CPATH || export CPATH=$HOME/.local/include
+[ -n $LD_LIBRARY_PATH ] && export LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH || export LD_LIBRARY_PATH=$HOME/.local/lib
+export LD_LIBRARY_PATH=$HOME/.local/lib64:$LD_LIBRARY_PATH
+
+touch "${lock_file}"
+rm -f "${queue_file}"
+
+java \
+    -ea -Xmx23G \
+    -Dsamjdk.create_index=true \
+    -Dsamjdk.use_async_io_read_samtools=true \
+    -Dsamjdk.use_async_io_write_samtools=true \
+    -Dsamjdk.use_async_io_write_tribble=true \
+    -Dsamjdk.compression_level=1 \
+    -cp bin/gridss-1.4.1-jar-with-dependencies.jar gridss.CallVariants \
+    INPUT="${INFILE}" \
+    INPUT_LABEL="${SAMPLEID}" \
+    OUTPUT="${out_file_raw}" \
+    ASSEMBLY="${OUTFILE_BAM}" \
+    REFERENCE_SEQUENCE="${REFERENCE}" \
+    THREADS=2 \
+    TMP_DIR="${PBS_JOBFS}/GRIDSS" \
+    WORKING_DIR="${PBS_JOBFS}/GRIDSS" \
+    BLACKLIST=wgEncodeDacMapabilityConsensusExcludable_excludeDecoy.bed 2>&1 | tee -a "${log_file}"
+
+awk -f add_tranche_to_vcf.awk < "${out_file_raw}" | bgzip > "${OUTFILE_VCFGZ}"
+rm -f "${out_file_raw}"
+tabix "${OUTFILE_VCFGZ}"
+
+touch "${done_file}"
+rm -f "${lock_file}"
