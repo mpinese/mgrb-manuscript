@@ -2,7 +2,7 @@
 set -euo pipefail
 
 mkdir -p ../converted_data
-gzip -dc ../source_data/dbSNP142.CATO.V1.1.txt.gz | awk '\
+unstarch ../source_data/dbSNP142.CATO.V1.1.starch | awk '\
   BEGIN {
     FS="\t"
     OFS="\t"
