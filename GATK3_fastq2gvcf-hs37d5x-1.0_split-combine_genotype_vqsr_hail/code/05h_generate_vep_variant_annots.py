@@ -12,7 +12,6 @@ split_vds = (hc
     .read('../MGRB.phase2.SNPtier12.match.vqsr.minrep.locusannot.WGStier12.unrelated.nocancer.vds')
     .drop_samples()
     .split_multi()
-    .repartition(10000)
     .annotate_variants_expr('va = {rsid:str(v)}')
 )
 split_vds.write('tmp/05_mgrb_split_variants.vds')

@@ -8,7 +8,7 @@ from hail.expr import TVariant
 
 hc = hail.HailContext(log = 'log/05h_add_db_vep_variant_annots.log', tmp_dir = 'tmp/hail')
 
-vds_mgrb = hc.read('../MGRB.phase2.SNPtier12.match.vqsr.minrep.locusannot.WGStier12.unrelated.nocancer.over70.vds').repartition(10000)
+vds_mgrb = hc.read('../MGRB.phase2.SNPtier12.match.vqsr.minrep.locusannot.WGStier12.unrelated.nocancer.over70.vds')
 
 # Generate a temporary frequency-only version of the MGRB.  This is in part to
 # act as a QC for the autosomal MGRB frequencies already calculated, as well as
@@ -52,7 +52,7 @@ def annotate_non_split_from_split(hc, non_split_vds_path, split_vds, annotations
     agg = (split_vds
         .annotate_variants_vds(variant_annotated_vds, 'va.variant = vds.variant, va.aIndex = vds.aIndex, va.nAltAlleles = vds.nAltAlleles')
         .filter_variants_expr('isDefined(va.variant)')
-        .variants_table().repartition(10000)
+        .variants_table()
         .aggregate_by_key('variant = va.variant', ann_agg_codes + ['nAltAlleles = va.map(x => x.nAltAlleles).take(1)[0]'])
     )
 
@@ -68,18 +68,18 @@ def annotate_non_split_from_split(hc, non_split_vds_path, split_vds, annotations
 
 # Create the MGRB annotation-only VDS starting point
 #######################################################################################################################################################################
-vds_mgrb.drop_samples().repartition(10000).write('tmp/05_mgrb_varsonly.vds')
+vds_mgrb.drop_samples().write('tmp/05_mgrb_varsonly.vds')
 
 # Load the source annotation databases
 
-vds_1000g_freqs = hc.read('../../databases/1000G_hail/1000G.split.minrep.freqs.vds').repartition(10000)
-vds_hrc_freqs = hc.read('../../databases/HRC_hail/HRC.minrep.vds').repartition(10000)
-vds_gnomad_freqs = hc.read('../../databases/GnomAD_hail/gnomad.genomes.r2.0.1.sites.combined.split.minrep.vds').repartition(10000)
-vds_mgrb_split_freqs = hc.read('tmp/05_mgrb_simpleafs.vds').repartition(10000)
-vds_dbsnp = hc.read('../../databases/dbSNP_hail/dbSNP_150.split.minrep.vds').repartition(10000)
-vds_clinvar = hc.read('../../databases/ClinVar_hail/clinvar.vds').repartition(10000)
-vds_cato = hc.read('../../databases/CATO_hail/CATO_1.1.vds').repartition(10000)
-vds_eigen = hc.read('../../databases/Eigen_hail/Eigen_coding_04092016.vds').repartition(10000)
+vds_1000g_freqs = hc.read('../../databases/1000G_hail/1000G.split.minrep.freqs.vds')
+vds_hrc_freqs = hc.read('../../databases/HRC_hail/HRC.minrep.vds')
+vds_gnomad_freqs = hc.read('../../databases/GnomAD_hail/gnomad.genomes.r2.0.1.sites.combined.split.minrep.vds')
+vds_mgrb_split_freqs = hc.read('tmp/05_mgrb_simpleafs.vds')
+vds_dbsnp = hc.read('../../databases/dbSNP_hail/dbSNP_150.split.minrep.vds')
+vds_clinvar = hc.read('../../databases/ClinVar_hail/clinvar.vds')
+vds_cato = hc.read('../../databases/CATO_hail/CATO_1.1.vds')
+vds_eigen = hc.read('../../databases/Eigen_hail/Eigen_coding_04092016.vds')
 vds_vep = hc.read('tmp/05_mgrb_split_variants.vep.vds')
 #vds_cadd = hc.read('../../databases/CADD_hail/CADD_1.3.vds')
 
