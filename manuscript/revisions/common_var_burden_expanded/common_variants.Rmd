@@ -1,0 +1,563 @@
+---
+title: Common Variant Burden Analysis
+output: html_document
+---
+
+# Data loading and cohort selection
+
+## Loading
+```{r load_data}
+afs_orig = read.csv("MGRB_GnomAD_SweGen_cancer_UKBB_AFs_outerjoined_ss-auto-gwas-snps_hcr.csv.xz", stringsAsFactors = FALSE, header = TRUE)
+models_orig = read.csv("../data/manual_polygenic_scores.hcr_tag_rescued.csv", stringsAsFactors = FALSE, header = TRUE)
+
+# Key allele frequencies by VID
+afs_orig$vid = paste(afs_orig$chrom, afs_orig$pos, afs_orig$ref, afs_orig$alt, sep = ":")
+afs_orig = afs_orig[,!(colnames(afs_orig) %in% c("chrom", "pos", "ref", "alt"))]
+
+# Add gnomad AFs to the models for imputation of missing variants
+temp.gnomad_af = (afs_orig$nAA_gnomad*2 + afs_orig$nRA_gnomad) / (2*(afs_orig$nAA_gnomad + afs_orig$nRA_gnomad + afs_orig$nRR_gnomad))
+models_orig$aaf = temp.gnomad_af[match(models_orig$vid, afs_orig$vid)]
+
+# Create a full UKBB cohort by combining the age-stratified numbers
+afs_orig$nRR_ukbb = afs_orig$nRR_ukbb_0_55 + afs_orig$nRR_ukbb_55_60 + afs_orig$nRR_ukbb_60_65 + afs_orig$nRR_ukbb_65_70 + afs_orig$nRR_ukbb_70_75 + afs_orig$nRR_ukbb_75_inf
+afs_orig$nRA_ukbb = afs_orig$nRA_ukbb_0_55 + afs_orig$nRA_ukbb_55_60 + afs_orig$nRA_ukbb_60_65 + afs_orig$nRA_ukbb_65_70 + afs_orig$nRA_ukbb_70_75 + afs_orig$nRA_ukbb_75_inf
+afs_orig$nAA_ukbb = afs_orig$nAA_ukbb_0_55 + afs_orig$nAA_ukbb_55_60 + afs_orig$nAA_ukbb_60_65 + afs_orig$nAA_ukbb_65_70 + afs_orig$nAA_ukbb_70_75 + afs_orig$nAA_ukbb_75_inf
+afs_orig$nmissing_ukbb = afs_orig$nmissing_ukbb_0_55 + afs_orig$nmissing_ukbb_55_60 + afs_orig$nmissing_ukbb_60_65 + afs_orig$nmissing_ukbb_65_70 + afs_orig$nmissing_ukbb_70_75 + afs_orig$nmissing_ukbb_75_inf
+
+# Convert afs from wide to long format
+library(reshape2)
+afs_long = melt(afs_orig, id.vars = c("rsid", "negstrand", "vid"), value.name = "count")
+afs_long$cohort = gsub("^n(RR|RA|AA|missing)_", "", afs_long$variable)
+afs_long$variable = gsub("_.*", "", afs_long$variable)
+afs = dcast(afs_long, vid + rsid + negstrand + cohort ~ variable, value.var = "count")
+afs = afs[,c("vid", "rsid", "negstrand", "cohort", "nRR", "nRA", "nAA", "nmissing")]
+
+# Exclude ASRB samples -- prelim examination suggests they are rather
+# poor quality, and we are not interested in their PRS distributions
+# anyway.  Also exclude the various MGRB filtration options, as they
+# apply only to rare variants.  Exclude SweGen as we don't have a good
+# HQ bed for it.
+cohorts.sel = c("mgrborig", "gnomad", "ukbb")
+cohorts.main = c("mgrborig", "gnomad", "ukbb")
+afs = afs[afs$cohort %in% cohorts.sel,]
+```
+
+
+## Model selection
+Choose polygenic models with at least 10 loci, with the exception of ShortLifespan:Deelen:10.1093/hmg/ddu139 (only six loci passing filters).  For cancers, choose polygenic models only for cancers with a positive control cohort.  In the case of multiple models for the same disorder, choose the most recent original publication where possible (ie exclude "meta" signatures if a good original report is available).
+
+```{r model_selection}
+# Excluded due to insufficient size:
+    # "CancerOfBladder:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "LymphoidLeukemiaAcute:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "LymphoidLeukemiaChronic:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "MalignantNeoplasmOfTestis:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "NonHodgkinsLymphoma:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "PancreaticCancer:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "APOE_rs429358:NA:NA",
+    # "ShortHealthspan:Zenin:10.1038/s42003-019-0290-0",
+    # "Deelen2019_90_disc",
+    # "Deelen2019_99_disc",
+# Excluded because a better alternative was available
+    # "CancerOfProstate:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "ColorectalCancer:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "MelanomasOfSkin:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "BreastCancer:Li:10.1038/gim.2016.43",
+    # "BreastCancerFemale:Fritsche:10.1016/j.ajhg.2018.04.001",
+    # "ShortParentalLifespan:Pilling:10.18632/aging.101334",
+# Excluded because of issues with population-specific alleles between UK and European popns
+    # "BasalCellCarcinoma:Chahal:10.1038/ncomms12510",
+    # "BasalCellCarcinoma:Fritsche:10.1016/j.ajhg.2018.04.001",
+# Excluded as superseded by Timmers / Pilling studies:
+    # "Deelen2014_85_rep",
+    # "Deelen2014_85_disc",
+    # "Deelen2014_90_rep",
+    # "Deelen2014_90_disc",
+
+models.sel = c(
+    "AF:Lubitz:10.1161/CIRCULATIONAHA.116.024143",
+    "DiastolicBP:Warren:10.1038/ng.3768",
+    "EOCAD:Theriault:10.1161/circgen.117.001849",
+    "PulsePressure:Warren:10.1038/ng.3768",
+    "SystolicBP:Warren:10.1038/ng.3768",
+
+    "AlzheimersDisease:Lambert:10.1038/ng.2802",
+    "ShortHealthspan:Zenin:10.1038/s42003-019-0290-0",
+    "ShortParentalLifespan:Timmers:10.7554/eLife.39856",
+
+    "Height:Wood:10.1038/ng.3097",
+
+    "BreastCancer:Michailidou:10.1038/nature24284",
+    "ColorectalCancer:Schumacher:10.1038/ncomms8138",
+    "Melanoma:Law:10.1038/ng.3373",
+    "ProstateCancer:Hoffmann:10.1158/2159-8290.CD-15-0315"
+
+)
+models = models_orig[models_orig$id %in% models.sel,]
+```
+
+
+## Variant filtering and imputation
+
+```{r variant_filtering}
+# Drop variants with low genotyping rate in any cohort in which that
+# variant was detected.  Use the threshold of 97% genotyping rate
+library(plyr)
+temp.lowgt = ddply(afs[!is.na(afs$nRR),], .(cohort), function(d) mean(d$nmissing / (d$nRR + d$nRA + d$nAA + d$nmissing) >= 0.03))
+temp.lowgt
+# The UKBB samples have rather a lot of dropouts here: ~ 5% of loci
+# have a gt rate under 97%.
+
+temp.gt_rate = 1 - daply(afs[!is.na(afs$nRR),], .(vid), function(d) {
+    d = d[d$cohort %in% cohorts.main,]
+    max(d$nmissing / (d$nRR + d$nRA + d$nAA + d$nmissing))})
+mean(temp.gt_rate < 0.97)
+afs = afs[afs$vid %in% names(temp.gt_rate)[temp.gt_rate >= 0.97],]
+mean(models$vid %in% names(temp.gt_rate)[temp.gt_rate >= 0.97])
+# ~5.0% of model loci lost by this filter
+models = models[models$vid %in% names(temp.gt_rate)[temp.gt_rate >= 0.97],]
+
+# Create a set of AFs for variants that have VCF entries in every cohort.  
+# Note that given the relatively small size of some cohorts, this tends to 
+# preferentially exclude rare variants from consideration, and will probably 
+# attenuate the GRS differences.
+afs.nmissing_per_cohort = tapply(is.na(afs$nRR[afs$cohort %in% cohorts.main]), afs$vid[afs$cohort %in% cohorts.main], sum)
+afs.nomissing = afs[!(afs$vid %in% names(afs.nmissing_per_cohort[afs.nmissing_per_cohort > 0])),]
+nrow(afs.nomissing) / nrow(afs)
+
+mean(models$vid %in% afs.nomissing$vid)
+```
+
+# Cohort AF comparisons
+
+Here we examine all GWAS-reported loci that passed filtering.
+
+## Overall distribution
+
+```{r cohort_af_comparisons, dev='png'}
+temp.afs = afs.nomissing
+temp.afs$fA = (temp.afs$nAA*2 + temp.afs$nRA) / (2*(temp.afs$nAA + temp.afs$nRA + temp.afs$nRR))
+temp.afs = acast(temp.afs, vid ~ cohort, value.var = "fA", fill = NA)
+pairs(temp.afs[,cohorts.main], pch = ".")
+library(corrplot)
+corrplot.mixed(cor(temp.afs[,cohorts.main]), lower = "ellipse", upper = "number")
+
+temp.overall_cohort.pvals = sapply(cohorts.main[1:(length(cohorts.main)-1)], function(cohort_1) {
+    cohort_1_idx = which(cohorts.main == cohort_1)
+    afs_1 = temp.afs[,cohort_1]
+    sapply(cohorts.main[(cohort_1_idx+1):length(cohorts.main)], function(cohort_2) {
+        afs_2 = temp.afs[,cohort_2]
+        test = wilcox.test(afs_1 - afs_2)
+        test$p.value
+    })
+})
+
+temp.overall_cohort.pvals
+p.adjust(unlist(temp.overall_cohort.pvals), "holm")
+
+temp.af.gnomad = temp.afs[,"gnomad"]
+temp.af.ukbb = temp.afs[,"ukbb"]
+temp.af.mgrb = temp.afs[,"mgrborig"]
+hist(temp.af.ukbb - temp.af.mgrb, breaks = c(-Inf, seq(-0.05, 0.05, 0.001), Inf), col = "grey", border = FALSE, xlim = c(-0.05, 0.05))
+hist(temp.af.ukbb - temp.af.gnomad, breaks = c(-Inf, seq(-0.05, 0.05, 0.001), Inf), col = "grey", border = FALSE, xlim = c(-0.05, 0.05))
+# Interestingly much higher AF diversity for gnomAD, despite it being a larger cohort.  Population effects?
+t.test(temp.af.ukbb - temp.af.mgrb)
+t.test(temp.af.ukbb - temp.af.gnomad)
+```
+There is a very slight but statistically significant skew in the AFs between UKBB and MGRB/gnomAD: UKBB has ever so slightly lower representation of the alt allele than both MGRB (0.0003360821 less) and gnomAD (0.0004744416 less).  I suspect a subtle technical effect.
+
+To address: is this of concern for the PRS calculations?  This slight bias would be of concern if both:
+
+1. The PRS allele effect direction was consistently skewed either to or away from the reference allele, and
+2. The magnitude of sum(skew x beta) was significant relative to any inter-cohort PRS differences.
+
+2 is difficult to address before we calculate the actual PRS distributions.  1 however we can test now.
+
+```{r cohort_pheno_allele_maf_comparisons}
+pheno_alleles = read.csv("../data/phenotype_associated_alleles.all.csv", stringsAsFactors = FALSE)
+pheno_alleles = pheno_alleles[pheno_alleles$vid %in% afs.nomissing$vid,]
+# Keep only alleles with consistent effect on a phenotype class
+pheno_alleles = ddply(pheno_alleles, .(class, vid), function(d) {
+    if (nrow(d) > 1 && (all(d$direction == 1) || all(d$direction == -1)))
+        d = d[1,,drop=FALSE]
+    d
+})
+write.csv(pheno_alleles, "../data/phenotype_associated_alleles.filt.csv", quote = FALSE, row.names = FALSE)
+pheno_alleles.tests = ddply(pheno_alleles, .(class), function(d) {
+    af.gnomad = temp.afs[d$vid, "gnomad"]
+    af.mgrb = temp.afs[d$vid, "mgrborig"]
+    af.ukbb = temp.afs[d$vid, "ukbb"]
+
+    daf.mgrb_gnomad = (af.mgrb - af.gnomad) * d$direction
+    daf.mgrb_ukbb = (af.mgrb - af.ukbb) * d$direction
+
+    n.mgrb_gt_gnomad.protective = sum(af.mgrb > af.gnomad & d$direction == -1)
+    n.mgrb_gt_gnomad.deleterious = sum(af.mgrb > af.gnomad & d$direction == 1)
+    n.gnomad_gt_mgrb.protective = sum(af.mgrb < af.gnomad & d$direction == -1)
+    n.gnomad_gt_mgrb.deleterious = sum(af.mgrb < af.gnomad & d$direction == 1)
+
+    ft.mgrb_gnomad = fisher.test(matrix(c(n.mgrb_gt_gnomad.protective, n.gnomad_gt_mgrb.protective, n.mgrb_gt_gnomad.deleterious, n.gnomad_gt_mgrb.deleterious), nrow = 2))
+
+    n.mgrb_gt_ukbb.protective = sum(af.mgrb > af.ukbb & d$direction == -1)
+    n.mgrb_gt_ukbb.deleterious = sum(af.mgrb > af.ukbb & d$direction == 1)
+    n.ukbb_gt_mgrb.protective = sum(af.mgrb < af.ukbb & d$direction == -1)
+    n.ukbb_gt_mgrb.deleterious = sum(af.mgrb < af.ukbb & d$direction == 1)
+    ft.mgrb_ukbb = fisher.test(matrix(c(n.mgrb_gt_ukbb.protective, n.ukbb_gt_mgrb.protective, n.mgrb_gt_ukbb.deleterious, n.ukbb_gt_mgrb.deleterious), nrow = 2))
+
+    data.frame(
+        class = d$class[[1]], 
+        ref_cohort = "mgrb", 
+        test_cohort = c("gnomad", "ukbb"), 
+        deltaaf_direction.median = c(median(daf.mgrb_gnomad), median(daf.mgrb_ukbb)),
+        p.value.wilcox = c(wilcox.test(daf.mgrb_gnomad)$p.value, wilcox.test(daf.mgrb_ukbb)$p.value),
+        or.fisher = c(ft.mgrb_gnomad$estimate, ft.mgrb_ukbb$estimate),
+        cil.fisher = c(ft.mgrb_gnomad$conf.int[[1]], ft.mgrb_ukbb$conf.int[[1]]),
+        ciu.fisher = c(ft.mgrb_gnomad$conf.int[[2]], ft.mgrb_ukbb$conf.int[[2]]),
+        p.value.fisher = c(ft.mgrb_gnomad$p.value, ft.mgrb_ukbb$p.value))
+})
+
+pheno_alleles.tests$p.value.wilcox.holm = p.adjust(pheno_alleles.tests$p.value.wilcox, "holm")
+pheno_alleles.tests$p.value.fisher.holm = p.adjust(pheno_alleles.tests$p.value.fisher, "holm")
+pheno_alleles.tests
+```
+
+Save the allele freqs for a supp table
+```{r cohort_maf_export}
+temp.nRR = acast(afs.nomissing, vid ~ cohort, value.var = "nRR", fill = NA)[,cohorts.main]
+temp.nRA = acast(afs.nomissing, vid ~ cohort, value.var = "nRA", fill = NA)[,cohorts.main]
+temp.nAA = acast(afs.nomissing, vid ~ cohort, value.var = "nAA", fill = NA)[,cohorts.main]
+temp.nmissing = acast(afs.nomissing, vid ~ cohort, value.var = "nmissing", fill = NA)[,cohorts.main]
+temp.AC = 2*temp.nAA + temp.nRA
+temp.AN = 2*(temp.nRR + temp.nRA + temp.nAA)
+temp = cbind(temp.AC, temp.AN)
+colnames(temp)[1:ncol(temp.AC)] = paste("AC.", colnames(temp.AC), sep = "")
+colnames(temp)[(ncol(temp.AC)+1):ncol(temp)] = paste("AN.", colnames(temp.AN), sep = "")
+colnames(temp) = gsub("mgrborig", "mgrb", colnames(temp))
+
+# Suppress generation of the file with UKBB data:
+# write.csv(temp, file = "data/gwas_afs.csv", row.names = TRUE)
+
+# We likely don't have permission to release UKBB AFs on such a broad scale, so
+# generate a no UKBB set also:
+write.csv(temp[,!grepl("ukbb", colnames(temp))], file = "gwas_afs_noukbb.csv", row.names = TRUE)
+```
+
+
+## Individual loci
+
+```{r locus_maf_comparisons}
+g.test = function(tbl)
+{
+    expected = outer(rowSums(tbl), colSums(tbl)) / sum(tbl)
+    logoe = log(tbl/expected)
+    logoe[tbl == 0] = 0
+    stat = 2*sum(tbl*logoe)
+    pchisq(stat, prod(dim(tbl)-1), lower.tail = FALSE)
+}
+
+temp.locus_cohort.pvals = ddply(afs.nomissing[afs.nomissing$vid %in% models$vid & afs.nomissing$cohort %in% cohorts.main,], .(vid), function(d) {
+    nR = d$nRR*2 + d$nRA
+    nA = d$nAA*2 + d$nRA
+    g.test(cbind(nR, nA))
+    # g.test(as.matrix(d[,c("nRR", "nRA", "nAA")]))
+})
+colnames(temp.locus_cohort.pvals)[2] = "p.value"
+temp.locus_cohort.pvals$p.value.mtc = p.adjust(temp.locus_cohort.pvals$p.value, "BH")
+# temp.locus_cohort.pvals$p.value.mtc is now calibrated for average false rejection rate 
+# (ie calling a SNP population-associated when it in fact isn't).
+
+mean(temp.locus_cohort.pvals$p.value.mtc < 0.01)
+
+temp.locus_cohort.maxdeltaaf = ddply(afs.nomissing[afs.nomissing$vid %in% models$vid & afs.nomissing$cohort %in% cohorts.main,], .(vid), function(d) {
+    nR = d$nRR*2 + d$nRA
+    nA = d$nAA*2 + d$nRA
+    AAF = nA/(nA+nR)
+    max(AAF) - min(AAF)
+})
+colnames(temp.locus_cohort.maxdeltaaf)[2] = "maxdeltaaaf"
+
+temp.locus_cohort.maxdeltaaf[order(temp.locus_cohort.maxdeltaaf$maxdeltaaaf),]
+hist(temp.locus_cohort.maxdeltaaf$maxdeltaaaf)
+
+# On the basis of this histogram, set a max delta aaf threshold of
+# 4%.  Drop loci with a delta AAF greater than this.
+mean(temp.locus_cohort.maxdeltaaf$maxdeltaaaf < 0.04)
+temp.sel_loci = temp.locus_cohort.maxdeltaaf$vid[temp.locus_cohort.maxdeltaaf$maxdeltaaaf < 0.04]
+afs = afs[afs$vid %in% temp.sel_loci,]
+models = models[models$vid %in% temp.sel_loci,]
+```
+
+Attempt to model the cohort AAF differences.
+
+```{r cohort_delta_aaf_model}
+temp.afs = afs
+temp.afs$fA = (temp.afs$nAA*2 + temp.afs$nRA) / (2*(temp.afs$nAA + temp.afs$nRA + temp.afs$nRR))
+temp.afs = acast(temp.afs, vid ~ cohort, value.var = "fA", fill = NA)
+
+temp.af.gnomad = temp.afs[,"gnomad"]
+temp.af.ukbb = temp.afs[,"ukbb"]
+temp.af.mgrb = temp.afs[,"mgrborig"]
+
+logit = function(p) log(p) - log(1-p)
+
+pairs(cbind(mgrb = logit(temp.af.mgrb), ukbb = logit(temp.af.ukbb), delta = logit(temp.af.ukbb) - logit(temp.af.mgrb)), pch = ".")
+pairs(cbind(mgrb = temp.af.mgrb, ukbb = temp.af.ukbb, delta = temp.af.ukbb - temp.af.mgrb), pch = ".")
+pairs(cbind(mgrb = temp.af.mgrb, ukbb = temp.af.ukbb, deltastd = (temp.af.ukbb - temp.af.mgrb)/sqrt(temp.af.ukbb*(1-temp.af.ukbb))), pch = ".")
+pairs(cbind(mgrb = logit(temp.af.mgrb), ukbb = logit(temp.af.ukbb), deltastd = (temp.af.ukbb - temp.af.mgrb)/sqrt(temp.af.ukbb*(1-temp.af.ukbb))), pch = ".")
+hist((temp.af.ukbb - temp.af.mgrb)/sqrt(temp.af.mgrb*(1-temp.af.mgrb)), breaks = 25, col = "grey")
+
+pairs(cbind(mgrb = logit(temp.af.mgrb), gnomad = logit(temp.af.gnomad), delta = logit(temp.af.gnomad) - logit(temp.af.mgrb)), pch = ".")
+pairs(cbind(mgrb = temp.af.mgrb, gnomad = temp.af.gnomad, delta = temp.af.gnomad - temp.af.mgrb), pch = ".")
+pairs(cbind(mgrb = temp.af.mgrb, gnomad = temp.af.gnomad, deltastd = (temp.af.gnomad - temp.af.mgrb)/sqrt(temp.af.gnomad*(1-temp.af.gnomad))), pch = ".")
+pairs(cbind(mgrb = logit(temp.af.mgrb), gnomad = logit(temp.af.gnomad), deltastd = (temp.af.gnomad - temp.af.mgrb)/sqrt(temp.af.gnomad*(1-temp.af.gnomad))), pch = ".")
+hist((temp.af.gnomad - temp.af.mgrb)/sqrt(temp.af.mgrb*(1-temp.af.mgrb)), breaks = 25, col = "grey")
+
+# Looks like a sd norm makes the allele frequency difference largely independent of AAF.
+# Therefore we can characterise the distribution of this normalised frequency difference
+# and sample from it without needing to condition on the allele frequency.
+# With > 20k loci we may as well just bootstrap directly instead of fitting a distribution
+# and sampling.
+norm_delta_aaf.mgrb_ukbb = (temp.af.mgrb - temp.af.ukbb)/sqrt(temp.af.ukbb*(1-temp.af.ukbb))
+norm_delta_aaf.mgrb_gnomad = (temp.af.mgrb - temp.af.gnomad)/sqrt(temp.af.gnomad*(1-temp.af.gnomad))
+```
+
+
+# Compare PRS distributions between cohorts
+
+```{r prs_functions, echo=FALSE}
+library(plyr)
+library(knitrProgressBar)
+
+dafplot = function(afs1, afs2, model, ...)
+{
+    shared_vars = intersect(intersect(afs1$vid, afs2$vid), model$vid)
+    afs1 = afs1[afs1$vid %in% shared_vars,]
+    afs2 = afs2[afs2$vid %in% shared_vars,]
+    model = model[model$vid %in% shared_vars,]
+
+    maf1 = (2*afs1$nAA + afs1$nRA) / (afs1$nAA + afs1$nRA + afs1$nRR) / 2
+    maf2 = (2*afs2$nAA + afs2$nRA) / (afs2$nAA + afs2$nRA + afs2$nRR) / 2
+
+    maf1 = maf1[match(shared_vars, afs1$vid)]
+    maf2 = maf2[match(shared_vars, afs2$vid)]
+    coefs = model$coef[match(shared_vars, model$vid)]
+
+    dmaf = maf1 - maf2
+
+    plot(coefs, dmaf, ...)
+    fit = try(loess(dmaf ~ coefs, degree = 0), silent = TRUE)
+    if (class(fit) != "try-error")
+    {
+        plot.x = seq(min(coefs), max(coefs), length.out = 100)
+        plot.y = predict(fit, plot.x)
+        lines(plot.x, plot.y)
+    }
+    abline(h = 0, lty = "dashed", col = "cornflowerblue", lwd = 2)
+}
+```
+
+## PRS calculation
+
+Perform a 'stress test' for the PRS as suggested by Greg. We wish to show here that
+the PRS differences between MGRB and UKBB, or MGRB and GnomAD, are unlikely to be simply
+due to drift. To do this, we simulate hypothetical MGRB cohorts derived from either
+UKBB or GnomAD, that are consistent with the drift-only hypothesis.
+
+The model:
+```
+POPULATION:    UK  --drift & ethnicity-->  Australian  --selection-->  Australian Wellderly
+               |                               |                                |
+               V                               V                                V
+SAMPLE:       UKBB                        Australian*                          MGRB
+```
+The ideal comparison is the Australian sample vs MGRB.  However, this Australian sample is not available.
+We simulate it by derivation from the UKBB sample, based on the MGRB - UKBB allele frequencies, on the
+assumption that the distribution of MAF_MGRB - MAF_UKBB will be very close to the distribution of 
+MAF_Aus - MAF_UKBB.  This is reasonable if we suppose that relatively few loci are linked to depleted
+MGRB phenotypes.
+
+Proceed as follows:
+
+1. Calculate normalised MGRB - UKBB AAF differences using observed AFs.  As these AFs were sampled, they
+   already incorporate sampling error, and we do not need to perform an additional sampling stage later.
+   $D_i = \frac{F_{MGRB}_i - F_{UKBB}_i}{\sqrt{(F_{UKBB}_i)*(1-F_{UKBB}_i)}}$
+2. Calculate expected MGRB PRS scores using observed AFs.
+3. For each bootstrap iteration $k$:
+    a. Take UKBB PRS AFs.
+    b. Sample hypothetical MGRB AFs as 
+        $$f_{MGRB}^{(k)}_i = f_{UKBB}_i + d^{(k)}_i*\sqrt{(f_{UKBB}_i)*(1-f_{UKBB}_i)}$$
+        where $d^{(k)} \~ d$.
+    c. Calculate expected MGRB PRS scores
+4. Compare the permuted MGRB scores (reflective of the null of population drift-only
+    differences) to the observed UKBB and MGRB scores.
+
+
+```{r prs_calculation_stresstest, cache=FALSE, results='hide', message=FALSE, warning=FALSE}
+stressboot.nboot = 100000
+stressboot.cohorts = c("ukbb", "gnomad")
+
+temp.afs.nomissing.modelonly = afs.nomissing[afs.nomissing$vid %in% models$vid,]
+temp.afs.nomissing.modelonly$aaf = (temp.afs.nomissing.modelonly$nAA + 0.5*temp.afs.nomissing.modelonly$nRA)/(temp.afs.nomissing.modelonly$nAA + temp.afs.nomissing.modelonly$nRA + temp.afs.nomissing.modelonly$nRR)
+
+stressboot.afmat.orig = acast(temp.afs.nomissing.modelonly, vid ~ cohort, value.var = "aaf")
+stressboot.afmat.orig = stressboot.afmat.orig[,c("mgrborig", stressboot.cohorts)]
+stressboot.models = acast(models, id ~ vid, value.var = "coef")
+stressboot.models[is.na(stressboot.models)] = 0
+stressboot.models = stressboot.models[,rownames(stressboot.afmat.orig)]
+stopifnot(rownames(stressboot.afmat.orig) == colnames(stressboot.models))
+
+stressboot.scores.orig = (2 * stressboot.models %*% stressboot.afmat.orig) / rowSums(stressboot.models != 0)
+names(dimnames(stressboot.scores.orig)) = c("model", "cohort")
+
+stressboot.normafdelta = list("aus_from_ukbb" = norm_delta_aaf.mgrb_ukbb, "aus_from_gnomad" = norm_delta_aaf.mgrb_gnomad)
+
+stressboot.tasks = expand.grid(bootiter = 1:stressboot.nboot, deriv_cohort = paste("aus_from_", stressboot.cohorts, sep = ""))
+stressboot.pb = progress_estimated(nrow(stressboot.tasks))
+
+stressboot.scores.boot = aperm(daply(stressboot.tasks, .(deriv_cohort, bootiter), function(d) {
+    update_progress(stressboot.pb)
+    stopifnot(nrow(d) == 1)
+    source_cohort = gsub("^aus_from_", "", d$deriv_cohort)
+    bootiter = d$bootiter
+    this.normdelta = stressboot.normafdelta[[d$deriv_cohort]]
+    set.seed(314159+bootiter-1)   # Will --> linked normdelta samples between the cohorts
+
+    this.delta = sample(this.normdelta, nrow(stressboot.afmat.orig), replace = TRUE)
+    this.aus_sim_af = stressboot.afmat.orig[,source_cohort] + this.delta*sqrt(stressboot.afmat.orig[,source_cohort]*(1-stressboot.afmat.orig[,source_cohort]))
+    this.aus_sim_af = pmax(0, pmin(1, this.aus_sim_af))
+
+    (2 * stressboot.models %*% this.aus_sim_af) / rowSums(stressboot.models != 0)
+}), c(3, 1, 2))
+names(dimnames(stressboot.scores.boot))[1] = "model"
+```
+
+```{r}
+saveRDS(stressboot.afmat.orig, "stressboot_afmat_orig.rds")
+saveRDS(stressboot.models, "stressboot_models.rds")
+print(rowSums(stressboot.models != 0))
+print(dim(stressboot.scores.orig))
+```
+
+```{r prs_calculation_stresstest_xform, cache=FALSE, results='hide', message=FALSE, warning=FALSE}
+# Convert to data frames for ggplot
+stressboot.dfs = list(original = melt(stressboot.scores.orig[,stressboot.cohorts]), boot = melt(stressboot.scores.boot))
+temp.mgrb_scores = stressboot.scores.orig[,"mgrborig"]
+temp.ukbb_sd = apply(stressboot.scores.boot[,"aus_from_ukbb",], 1, sd)   # Get SDs from UKBB to normalise scores for plotting
+stressboot.dfs$original$value.mgrb = temp.mgrb_scores[stressboot.dfs$original$model]
+stressboot.dfs$boot$value.mgrb = temp.mgrb_scores[stressboot.dfs$boot$model]
+stressboot.dfs$original$value.rel = stressboot.dfs$original$value - stressboot.dfs$original$value.mgrb
+stressboot.dfs$boot$value.rel = stressboot.dfs$boot$value - stressboot.dfs$boot$value.mgrb
+stressboot.dfs$summary = ddply(stressboot.dfs$boot, .(model, deriv_cohort), function(d) {
+    mean.rel = mean(d$value.rel)
+    ci.rel = quantile(d$value.rel, c(0.025, 0.975))
+    nneg = sum(d$value.rel < 0)
+    npos = sum(d$value.rel > 0)
+    p.value = 2 * (min(nneg, npos) + 0.5) / (nrow(d)+1)
+    c(p.value = p.value, mean.rel = mean.rel, lcl.rel = ci.rel[[1]], ucl.rel = ci.rel[[2]], nneg = nneg, npos = npos) })
+stressboot.dfs$summary$p.value.holm = p.adjust(stressboot.dfs$summary$p.value, "holm")
+stressboot.dfs$summary$p.value.BH = p.adjust(stressboot.dfs$summary$p.value, "BH")
+stressboot.dfs$summary$mean.rel.norm = stressboot.dfs$summary$mean.rel / temp.ukbb_sd[stressboot.dfs$summary$model]
+stressboot.dfs$summary$lcl.rel.norm = stressboot.dfs$summary$lcl.rel / temp.ukbb_sd[stressboot.dfs$summary$model]
+stressboot.dfs$summary$ucl.rel.norm = stressboot.dfs$summary$ucl.rel / temp.ukbb_sd[stressboot.dfs$summary$model]
+```
+
+```{r prs_calculation_stresstest_output, echo=FALSE, results='asis'}
+library(knitr)
+library(kableExtra)
+kable(stressboot.dfs$summary)
+saveRDS(stressboot.dfs, "stressboot_dfs.rds")
+```
+
+```{r prs_calculation_stresstest_plots, cache=FALSE, dev='svg'}
+stressboot.dfs$summary$plot_cohort = c("aus_from_ukbb" = "UKBB", "aus_from_gnomad" = "gnomAD")[stressboot.dfs$summary$deriv_cohort]
+library(ggplot2)
+ggplot(stressboot.dfs$summary, aes(x = model, y = mean.rel.norm, ymin = lcl.rel.norm, ymax = ucl.rel.norm, col = plot_cohort, group = plot_cohort)) + 
+    geom_point(position = position_dodge(width = 0.7), size = 2) + geom_errorbar(position = position_dodge(width = 0.7), width = 0.3, lwd = 1) + 
+    geom_hline(yintercept = 0, lty = "dashed") + 
+    labs(y = "Polygenic score relative to MGRB, normalised", x = "Polygenic model", col = "Comparison cohort") + theme_bw() + coord_flip()
+```
+
+### Investigate basis of PRS differences
+
+```{r prs_diagnostic_functions, dev='svg', warnings=FALSE}
+for (i in 1:nrow(stressboot.dfs$summary))
+{
+    try(
+    dafplot(
+        afs1 = afs.nomissing[afs.nomissing$cohort == "mgrborig",], 
+        afs2 = afs.nomissing[afs.nomissing$cohort == gsub("^aus_from_", "", stressboot.dfs$summary$deriv_cohort[i]),], 
+        model = models[models$id == stressboot.dfs$summary$model[i],],
+        main = stressboot.dfs$summary$model[i],
+        xlab = "",
+        # xlab = expression(paste("PRS ", beta)),
+        ylab = sprintf("MAF MGRB - %s", gsub("^aus_from_", "", stressboot.dfs$summary$deriv_cohort[i])),
+        mar = c(9, 4, 4, 2)+0.1,
+        sub = sprintf("\ndelta_mean=%.3e  (%.3e-%.3e)\np.raw=%.4f  p.holm=%.4f  p.bh=%.4f", stressboot.dfs$summary$mean.rel[i], stressboot.dfs$summary$lcl.rel[i], stressboot.dfs$summary$ucl.rel[i], stressboot.dfs$summary$p.value[i], stressboot.dfs$summary$p.value.holm[i], stressboot.dfs$summary$p.value.BH[i]))
+    )
+}
+
+```
+
+
+<!-- ```{r pca_power, dev='svg'}
+means = apply(boot_scores["ProstateCancer:Hoffmann:10.1158/2159-8290.CD-15-0315",c("mgrborig", "ukbb", "cancerpca_m"),], 1, mean)
+sds = apply(boot_scores["ProstateCancer:Hoffmann:10.1158/2159-8290.CD-15-0315",c("mgrborig", "ukbb", "cancerpca_m"),], 1, sd)
+cls = apply(boot_scores["ProstateCancer:Hoffmann:10.1158/2159-8290.CD-15-0315",c("mgrborig", "ukbb", "cancerpca_m"),], 1, quantile, probs = c(0.025, 0.975))
+approxn = sapply(c("mgrborig", "ukbb", "cancerpca_m"), function(l)  median(afs_orig[,sprintf("nRR_%s", l)] + afs_orig[,sprintf("nRA_%s", l)] + afs_orig[,sprintf("nAA_%s", l)], na.rm = TRUE))
+print(means)
+print(sds)
+print(approxn)
+sdsnorm = sds * sqrt(approxn)
+sdsnorm_med = median(sdsnorm)
+
+boxplot(value ~ cohort, melt(boot_scores["ProstateCancer:Hoffmann:10.1158/2159-8290.CD-15-0315",c("mgrborig", "ukbb", "cancerpca_m"),]))
+
+library(pwr)
+
+simtest.pow_for_n = function(mu1, sd1, n1, mu2, sd2, n2, alpha)
+{
+    sdd = sqrt(sd1^2/n1 + sd2^2/n2)
+    esize = abs(mu1 - mu2)/sdd
+    pwr.t2n.test(n1 = n1, n2 = n2, d = esize, sig.level = alpha)$power
+}
+
+simtest.n_for_pow = function(mu1, sd1, pow1, mu2, sd2, n2, alpha)
+{
+    powl = simtest.pow_for_n(mu1, sd1, 2, mu2, sd2, n2, alpha)
+    powh = simtest.pow_for_n(mu1, sd1, 1e6, mu2, sd2, n2, alpha)
+    if (powl > pow1)
+        return(1)
+    else if (powh < pow1)
+        return(Inf)
+    else
+        return(uniroot(function(n1) simtest.pow_for_n(mu1, sd1, n1, mu2, sd2, n2, alpha) - pow1, c(2, 1e6))$root)
+}
+
+pow.alpha = 0.05
+
+pow.n = 2:40
+pow.n.pow.ukbb = sapply(pow.n, function(n) simtest.pow_for_n(means[["cancerpca_m"]], sdsnorm_med, n, means[["ukbb"]], sdsnorm_med, approxn[["ukbb"]], alpha=pow.alpha))
+pow.n.pow.mgrb = sapply(pow.n, function(n) simtest.pow_for_n(means[["cancerpca_m"]], sdsnorm_med, n, means[["mgrborig"]], sdsnorm_med, approxn[["mgrborig"]], alpha=pow.alpha))
+plot(pow.n.pow.mgrb ~ pow.n, type = "l", col = "blue", ylab = "Power", xlab = "Number of cancer samples")
+lines(pow.n.pow.ukbb ~ pow.n, col = "red")
+legend("bottomright", inset = 0.05, legend = c(sprintf("MGRB, n=%d", approxn[["mgrborig"]]), sprintf("UKBB, n=%d", approxn[["ukbb"]])), lty = "solid", col = c("blue", "red"))
+
+pow.n = 2:40
+pow.n.pow.ukbb = sapply(pow.n, function(n) simtest.pow_for_n(means[["cancerpca_m"]], sdsnorm_med, n, means[["ukbb"]], sdsnorm_med, n, alpha=pow.alpha))
+pow.n.pow.mgrb = sapply(pow.n, function(n) simtest.pow_for_n(means[["cancerpca_m"]], sdsnorm_med, n, means[["mgrborig"]], sdsnorm_med, n, alpha=pow.alpha))
+plot(pow.n.pow.mgrb ~ pow.n, type = "l", col = "blue", ylab = "Power", xlab = "Number of cancer samples")
+lines(pow.n.pow.ukbb ~ pow.n, col = "red")
+legend("bottomright", inset = 0.05, legend = c(sprintf("MGRB, n matched", approxn[["mgrborig"]]), sprintf("UKBB, n matched", approxn[["ukbb"]])), lty = "solid", col = c("blue", "red"))
+
+pow.pow = seq(0.7, 0.999, 0.001)
+pow.pow.n.ukbb = sapply(pow.pow, function(pow) simtest.n_for_pow(means[["cancerpca_m"]], sdsnorm_med, pow, means[["ukbb"]], sdsnorm_med, approxn[["ukbb"]], alpha=pow.alpha))
+pow.pow.n.mgrb = sapply(pow.pow, function(pow) simtest.n_for_pow(means[["cancerpca_m"]], sdsnorm_med, pow, means[["mgrborig"]], sdsnorm_med, approxn[["mgrborig"]], alpha=pow.alpha))
+plot(pow.pow.n.ukbb ~ pow.pow, type = "l", col = "red", ylab = "Number of cancer samples", xlab = "Power", xlim = c(0.7, 1), ylim = c(0, 40))
+lines(pow.pow.n.mgrb ~ pow.pow, col = "blue")
+legend("topleft", inset = 0.05, legend = c(sprintf("MGRB, n=%d", approxn[["mgrborig"]]), sprintf("UKBB, n=%d", approxn[["ukbb"]])), lty = "solid", col = c("blue", "red"))
+
+```
+ -->
+```{r sessioninfo}
+sessionInfo()
+```
