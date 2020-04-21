@@ -19,7 +19,6 @@ misc/
 
 **/pypy-*/
 
-*.gz
 *.bgz
 *.xz
 *.tbi
